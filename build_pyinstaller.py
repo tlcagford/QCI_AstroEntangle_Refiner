@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+python -m pip install --upgrade pip#!/usr/bin/env python3
 """Build executable with PyInstaller"""
 import subprocess
 import sys

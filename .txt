@@ -1,0 +1,6 @@
+QCI_AstroEntangle_Refiner/
+├── QCI_AstroEntangle_Refiner.py          ← main app (copy code below)
+├── requirements.txt
+├── README.md
+├── logo.png                              ← (optional – add your logo)
+└── dist/                                 ← (will be created after build)

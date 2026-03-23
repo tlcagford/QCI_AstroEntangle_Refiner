@@ -1,4 +1,3 @@
-
 """
 QCI AstroEntangle Refiner — patched v2.1
 Author : Tony E. Ford  <tlcagford@gmail.com>

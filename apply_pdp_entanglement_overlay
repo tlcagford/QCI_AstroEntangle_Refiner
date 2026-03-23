@@ -1,0 +1,94 @@
+def apply_pdp_entanglement_overlay(self, image):
+    """
+    Generate entanglement map using actual photon-dark-photon physics
+    Based on Primordial-Photon-DarkPhoton-Entanglement theory
+    """
+    # Get pixel scale from FITS header if available
+    pixel_scale = self.get_pixel_scale()  # You'll need to implement this
+    if pixel_scale is None:
+        pixel_scale = 0.1  # Default arcsec/pixel
+    
+    # Convert UI sliders to physics parameters
+    # entanglement_coupling (0.05-0.50) -> mixing parameter ε
+    # Scale is logarithmic because ε is typically tiny
+    mixing_parameter = 10 ** (-8 + 6 * (self.entanglement_coupling - 0.05) / 0.45)
+    mixing_parameter = np.clip(mixing_parameter, 1e-10, 1e-5)
+    
+    # Fringe scale (pixels) -> dark photon mass
+    # Using de Broglie relation: m = h / (λ * v)
+    fringe_meters = self.fringe_scale * pixel_scale * (np.pi / (180 * 3600))
+    relative_velocity = 1e5  # 100 km/s typical
+    dark_photon_mass = PhysicalConstants.h / (fringe_meters * relative_velocity)
+    
+    # Initialize the photon-dark-photon system
+    pdp_system = PhotonDarkPhotonSystem(
+        image_data=image,
+        pixel_scale_arcsec=pixel_scale,
+        dark_photon_mass=dark_photon_mass,
+        mixing_parameter=mixing_parameter,
+        relative_velocity=relative_velocity,
+        redshift=self.get_redshift()  # You'll need to implement this
+    )
+    
+    # Generate the entanglement map with full physics
+    entanglement_map = pdp_system.generate_entanglement_map()
+    
+    # Store metadata for display
+    self.current_physics_metadata = pdp_system.metadata
+    
+    # Apply colormap (same aesthetic as before, but now on physics data)
+    colored_overlay = self.apply_entanglement_colormap(entanglement_map)
+    
+    return colored_overlay
+
+def apply_entanglement_colormap(self, data):
+    """
+    Apply the blue→magenta→amber colormap to entanglement data
+    """
+    # Normalize data to [0, 1]
+    data_norm = (data - data.min()) / (data.max() - data.min() + 1e-10)
+    
+    # Create RGB array
+    h, w = data_norm.shape
+    rgb = np.zeros((h, w, 3), dtype=np.uint8)
+    
+    # Define colormap points
+    # Blue (0,0,255) -> Magenta (255,0,255) -> Amber (255,191,0)
+    for i in range(h):
+        for j in range(w):
+            val = data_norm[i, j]
+            if val < 0.5:
+                # Blue to Magenta
+                t = val * 2  # 0 to 1
+                rgb[i, j, 0] = int(255 * t)      # Red increases
+                rgb[i, j, 1] = 0
+                rgb[i, j, 2] = 255
+            else:
+                # Magenta to Amber
+                t = (val - 0.5) * 2  # 0 to 1
+                rgb[i, j, 0] = 255
+                rgb[i, j, 1] = int(191 * t)      # Green increases
+                rgb[i, j, 2] = int(255 * (1 - t)) # Blue decreases
+    
+    return rgb
+
+def get_pixel_scale(self):
+    """
+    Extract pixel scale from FITS header if available
+    """
+    if hasattr(self, 'current_fits_header'):
+        # Try common keywords
+        for keyword in ['CDELT1', 'CD1_1', 'PIXELSCL']:
+            if keyword in self.current_fits_header:
+                return abs(self.current_fits_header[keyword]) * 3600  # deg to arcsec
+    return None  # Use default
+
+def get_redshift(self):
+    """
+    Get redshift from FITS header or use default
+    """
+    if hasattr(self, 'current_fits_header'):
+        for keyword in ['REDSHIFT', 'Z', 'ZREDSHIFT']:
+            if keyword in self.current_fits_header:
+                return float(self.current_fits_header[keyword])
+    return 0.0  # Default

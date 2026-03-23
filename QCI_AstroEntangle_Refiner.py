@@ -1,5 +1,4 @@
-
-from pdp_physics_working import PhotonDarkPhotonEngine, PhysicalConstants
+from pdp_physics_working import PhotonDarkPhotonEngine
 
 # And in __init__:
 self.physics_engine = PhotonDarkPhotonEngine()
@@ -58,7 +57,8 @@ from pdp_physics_working import PhotonDarkPhotonEngine
     self.current_physics_metadata = metadata
     self.physics_engine = PhotonDarkPhotonEngine()self.physics_engine = PhotonDarkPhotonEngine()
      # Convert UI sliders to physics parameters
-        pixel_scale = self.get_pixel_scale()  # Implement this
+        self.physics_engine = PhotonDarkPhotonEngine()apply_pdp_entanglement_overlayentanglement_map = self.physics_engine.initialize_from_image(...)
+pixel_scale = self.get_pixel_scale()  # Implement this
         epsilon = 10 ** (-8 + 6 * (self.entanglement_coupling - 0.05) / 0.45)
         
         # Initialize physics engine

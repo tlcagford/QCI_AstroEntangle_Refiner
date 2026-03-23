@@ -1,5 +1,19 @@
-# At the top of the file
-from pdp_physics_working import PhotonDarkPhotonEngine
+# Should be added at top of QCI_AstroEntangle_Refiner.py:
+from pdp_physics_working import PhotonDarkPhotonEngine, PhysicalConstants
+
+# And in __init__:
+self.physics_engine = PhotonDarkPhotonEngine()
+
+# And apply_pdp_entanglement_overlay should be replaced with:
+def apply_pdp_entanglement_overlay(self, image):
+    metadata = self.physics_engine.initialize_from_image(
+        image_data=image,
+        pixel_scale_arcsec=self.pixel_scale_arcsec,
+        dark_photon_mass_eV=self._fringe_to_mass(),  # Convert slider
+        mixing_epsilon=self._coupling_to_epsilon(),  # Convert slider
+        relative_velocity=1e5
+    )
+    return self.physics_engine.get_entanglement_map()
 
 # In the __init__ method of your main class
 self.physics_engine = PhotonDarkPhotonEngine()

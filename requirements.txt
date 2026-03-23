@@ -5,3 +5,5 @@ astropy>=5.3.0
 scipy>=1.11.0
 opencv-python>=4.8.0
 torch>=2.0.0
+# Additional physics requirements
+scikit-image>=0.21.0

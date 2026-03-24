@@ -1,10 +1,12 @@
+torch
+torchvision
+torchaudio
+pyinstaller
 customtkinter
 matplotlib
 numpy
 astropy
 scipy
 opencv-python
-torch
-torchvision
-torchaudio
 pyinstaller
+torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu

@@ -67,7 +67,6 @@ class QCI_AstroEntangle_Refiner(ctk.CTk):
         self.title("QCI AstroEntangle Refiner v4.0.1 - Tony E Ford")
         self.geometry("1700x1100")
 
-        # Sidebar
         sidebar = ctk.CTkFrame(self, width=320)
         sidebar.pack(side="left", fill="y", padx=15, pady=15)
 
@@ -114,19 +113,16 @@ class QCI_AstroEntangle_Refiner(ctk.CTk):
             return messagebox.showwarning("Error", "Please load a FITS file first!")
 
         try:
-            # 1. PSF Deconvolution
             kernel = Gaussian2DKernel(x_stddev=2.5).array
             data = np.maximum(self.raw, 0)
             self.refined = self.richardson_lucy(data, kernel, iterations=20)
 
-            # 2. Full PDP Entanglement
             model = PDPEntanglementModel(
                 omega_pd=self.slider_omega.get(),
                 fringe_scale=self.slider_fringe.get()
             )
             self.entangled = model.apply_full_pdp(self.refined)
 
-            # Display
             self.show_image("Neural Enhanced", self.refined, "Neural Enhanced (PSF + SR)")
             self.show_image("Entangled Overlay", self.entangled, "Photon–Dark-Photon Entangled FDM Overlay")
             self.show_comparison()

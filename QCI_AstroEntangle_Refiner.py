@@ -24,7 +24,7 @@ try:
 except ImportError as e:
     print(f"❌ Missing dependency: {e}")
     print("Please run: pip install -r requirements.txt")
-    sys.exit(1)
+
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")

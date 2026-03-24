@@ -1,93 +1,88 @@
-from pdp_physics_working import PhotonDarkPhotonEngine
+# Add these imports at the top (replace the old file)
+import numpy as np
+from astropy.io import fits
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from scipy.signal import convolve2d
+import cv2
+import os
+from datetime import datetime
 
-# And in __init__:
-self.physics_engine = PhotonDarkPhotonEngine()
+# ==================== FULL PDP FORMULAS ====================
 
-# And apply_pdp_entanglement_overlay should be replaced with:
-def apply_pdp_entanglement_overlay(self, image):
-    metadata = self.physics_engine.initialize_from_image(
-        image_data=image,
-        pixel_scale_arcsec=self.pixel_scale_arcsec,
-        dark_photon_mass_eV=self._fringe_to_mass(),  # Convert slider
-        mixing_epsilon=self._coupling_to_epsilon(),  # Convert slider
-        relative_velocity=1e5
-    )
-    return self.physics_engine.get_entanglement_map()
+class PDPEntanglementModel:
+    """Full Photon-Dark-Photon Entanglement Model from your visualizer"""
+    def __init__(self, omega_pd=0.20, fringe_scale=45):
+        self.omega_pd = omega_pd          # Entanglement observable Ω_PD
+        self.fringe_scale = fringe_scale  # ~3.14 kpc scaled to pixels
 
-# In the __init__ method of your main class
-self.physics_engine = PhotonDarkPhotonEngine()
-from pdp_physics_working import PhotonDarkPhotonEngine
+    def combined_wavefunction(self, psi_t, psi_d, delta_phi=np.pi/2):
+        """ψ = ψ_t + ψ_d * e^(i Δφ)"""
+        return psi_t + psi_d * np.exp(1j * delta_phi)
 
-        # Convert UI sliders to physics parameters
-        pixel_scale = self.get_pixel_scale()  # Implement this
-        epsilon = 10 ** (-8 + 6 * (self.entanglement_coupling - 0.05) / 0.45)
-    """Apply actual photon-dark-photon entanglement physics"""
-    
-    # Get pixel scale from FITS header (implement this method)
-    pixel_scale = self.get_pixel_scale_from_header()
-    if pixel_scale is None:
-        pixel_scale = 0.1  # Default arcsec/pixel
-    
-    # Map GUI sliders to physics parameters
-    # entanglement_coupling (0.05-0.50) -> mixing_epsilon (log scale)
-    # Use log scale because epsilon is typically tiny
-    epsilon = 10 ** (-8 + 6 * (self.entanglement_coupling - 0.05) / 0.45)
-    epsilon = np.clip(epsilon, 1e-12, 1e-5)
-    
-    # fringe_scale (pixels) -> dark photon mass via de Broglie
-    # λ = h/(mv) -> m = h/(λv)
-    fringe_meters = self.fringe_scale * pixel_scale * (np.pi / (180 * 3600))
-    relative_velocity = 1e5  # 100 km/s
-    const = PhysicalConstants()
-    dark_photon_mass_eV = (const.h / (fringe_meters * relative_velocity)) / const.eV_to_kg
-    
-    # Initialize physics engine with image
-    metadata = self.physics_engine.initialize_from_image(
-        image_data=image,
-        pixel_scale_arcsec=pixel_scale,
-        dark_photon_mass_eV=dark_photon_mass_eV,
-        mixing_epsilon=epsilon,
-        relative_velocity=relative_velocity
-    )
-    
-    # Get entanglement map
-    entanglement_map = self.physics_engine.get_entanglement_map()
-    
-    # Store metadata for display
-    self.current_physics_metadata = metadata
-    self.physics_engine = PhotonDarkPhotonEngine()self.physics_engine = PhotonDarkPhotonEngine()
-     # Convert UI sliders to physics parameters
-        self.physics_engine = PhotonDarkPhotonEngine()apply_pdp_entanglement_overlayentanglement_map = self.physics_engine.initialize_from_image(...)
-pixel_scale = self.get_pixel_scale()  # Implement this
-        epsilon = 10 ** (-8 + 6 * (self.entanglement_coupling - 0.05) / 0.45)
-        
-        # Initialize physics engine
-        metadata = self.physics_engine.initialize_from_image(
-            image_data=image,
-            pixel_scale_arcsec=pixel_scale,
-            dark_photon_mass_eV=1e-22,  # Can map from fringe_scale
-            mixing_epsilon=epsilon,
-            relative_velocity=1e5
-        )
-        
-        # Store metadata for physics info tab
-        self.current_physics_metadata = metadata
-        
-        # Get entanglement map
-        entanglement_map = self.physics_engine.get_entanglement_map()
-        
-        # Apply colormap
-        colored_overlay = self._apply_colormap(entanglement_map)
-        
-        return colored_overlay
-    except Exception as e:
-        print(f"Physics error: {e}, falling back to decorative overlay")
-        # Fallback to original decorative overlay
-        return self._decorative_overlay(image)
-# Apply colormap
-    colored_overlay = self.apply_entanglement_colormap(entanglement_map)
-    
-    # Update physics info display
-    self.update_physics_display()
-    
-    return colored_overlay
+    def interference_density(self, psi_t, psi_d, delta_phi=np.pi/2):
+        """Full interference term: |ψ_t|² + |ψ_d|² + 2 Re(ψ_t* ψ_d e^(iΔφ))"""
+        interference = 2 * np.real(psi_t.conj() * psi_d * np.exp(1j * delta_phi))
+        return np.abs(psi_t)**2 + np.abs(psi_d)**2 + interference
+
+    def solitonic_core(self, r, r_c=1.0, rho_c=1.9e7):
+        """ρ(r) = ρ_c / [1 + (r/r_c)²]^8"""
+        return rho_c / (1 + (r / r_c)**2)**8
+
+    def apply_full_entanglement(self, image, r_c=74, omega_pd=0.20):
+        """Apply full P-D-P model to image"""
+        h, w = image.shape
+        y, x = np.ogrid[:h, :w]
+        center = (h//2, w//2)
+        r = np.sqrt((x - center[1])**2 + (y - center[0])**2) / 50   # scaled radius
+
+        # Solitonic core boost
+        core = self.solitonic_core(r, r_c=r_c/10, rho_c=1.0)
+
+        # Create two fields
+        psi_t = image.astype(np.complex128)
+        psi_d = image.astype(np.complex128) * 0.3   # dark photon amplitude
+
+        # Interference
+        density = self.interference_density(psi_t, psi_d, delta_phi=np.pi/2)
+
+        # Final modulated image
+        result = image * (1 + self.omega_pd * np.real(density) * core)
+        return np.clip(result, 0, None)
+
+# ==================== MAIN APP ====================
+
+class QCI_AstroEntangle_Refiner(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("QCI AstroEntangle Refiner v2.1 - Full PDP Model")
+        self.geometry("1650x1050")
+
+        # ... (keep your sidebar and sliders as before)
+
+        self.pdp_model = PDPEntanglementModel(omega_pd=0.20, fringe_scale=45)
+
+    def run_pipeline(self):
+        if self.raw is None:
+            return messagebox.showwarning("Error", "Load a FITS first")
+
+        # 1. PSF + Neural (keep as before)
+        # ...
+
+        # 2. Full Photon-Dark-Photon Entanglement
+        entangled = self.pdp_model.apply_full_entanglement(self.refined_data, 
+                                                           r_c=74, 
+                                                           omega_pd=self.slider_omega.get())
+
+        self.entangled_data = entangled
+        self.show_image(self.tab_entangled, entangled, "Full Photon–Dark-Photon Entanglement Overlay")
+
+        self.show_comparison()
+        messagebox.showinfo("Success", "Full PDP model applied with all formulas from the visualizer!")
+
+# Rest of your GUI code remains the same...

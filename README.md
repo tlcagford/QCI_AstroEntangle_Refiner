@@ -1,159 +1,61 @@
-# QCI AstroEntangle Refiner
+# QCI AstroEntangle Refiner v4.0
 
-**Full desktop application for astronomical FITS image processing**  
-PSF correction · Neural super-resolution · Photon–dark-photon entanglement visualisation
+**Quantum-Cosmology Integration**  
+**Full Photon–Dark-Photon Entangled Fuzzy Dark Matter (FDM) Visualization Tool**
 
-**Author:** Tony E. Ford — [tlcagford@gmail.com](mailto:tlcagford@gmail.com)  
-**Version:** 2.1 (patched) · **Python:** 3.9+
-
----
-
-## What it does
-
-QCI AstroEntangle Refiner runs a three-stage pipeline on any FITS image from HST, JWST, MAST, or any other observatory:
-
-| Stage | What happens |
-|-------|-------------|
-| **1 · PSF correction** | Wiener deconvolution removes point-spread-function blurring from the telescope optics |
-| **2 · Neural super-resolution** | Lightweight EDSR network (×2 upscale) sharpens fine structure |
-| **3 · PDP entanglement overlay** | Photon–dark-photon fringe colormap applied; before/after comparison generated |
-
-Each stage is displayed in its own tab. Results can be exported as PNG or FITS.
+**Author:** Tony E Ford  
+**Email:** tlcagford@gmail.com  
 
 ---
 
-## Quick start
+## Overview
 
-### 1 — Install dependencies
+QCI AstroEntangle Refiner is a desktop application that combines astronomical image refinement with a **complete photon–dark-photon entanglement model** for Fuzzy Dark Matter (FDM).
 
-```bash
-pip install customtkinter matplotlib numpy astropy scipy opencv-python torch torchvision
-```
+It allows researchers to:
+- Load real HST/JWST/Chandra FITS files
+- Apply PSF deconvolution
+- Perform neural enhancement
+- Overlay the full **Photon–Dark-Photon Entangled FDM model** (matching the Cosmic Entanglement Visualizer)
+- Visualize soliton cores and interference fringes
+- Export processed FITS and comparison images
 
-> **GPU acceleration (optional):** Install the CUDA build of PyTorch from [pytorch.org](https://pytorch.org/get-started/locally/) for faster neural SR on large images. The app falls back to CPU automatically.
-
-### 2 — Run the app
-
-```bash
-python QCI_AstroEntangle_Refiner.py
-```
-
-### 3 — Use the pipeline
-
-1. Click **Load FITS** — select any `.fits`, `.fit`, `.fz`, or `.fits.gz` file
-2. Adjust the three sliders if desired (defaults work well for most images)
-3. Click **Run Full Pipeline** — all four output tabs populate automatically
-4. Click **Export Results** to save the PDP overlay as PNG or FITS
+**Version 4.0** features the complete implementation of the PDP formulas:
+- Solitonic core density profile: ρ(r) = ρ_c / [1 + (r/r_c)²]⁸
+- Full two-field interference term
+- Tunable Ω_PD (default 0.20)
+- Fringe scale control
 
 ---
 
-## Sliders
+## Features
 
-| Slider | Range | Default | What it controls |
-|--------|-------|---------|-----------------|
-| **Ω_PD (entanglement coupling)** | 0.05 – 0.50 | 0.20 | Amplitude of the PDP fringe overlay. Higher = stronger colour effect |
-| **Fringe scale (pixels)** | 20 – 80 | 45 | Spatial wavelength of the fringe pattern in pixels |
-| **PSF sigma (deconvolution)** | 0.5 – 4.0 | 1.5 | Width of the Wiener filter kernel. Match to your telescope's PSF FWHM |
-
----
-
-## Build a standalone executable
-
-To distribute the app without requiring a Python environment:
-
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name "QCI_AstroEntangle_Refiner" QCI_AstroEntangle_Refiner.py
-```
-
-The executable will be in the `dist/` folder.
-
-> **macOS note:** You may need `--target-architecture x86_64` on Apple Silicon if PyTorch is not yet arm64-compatible in your environment.
+- Clean dark-themed GUI with tabbed interface
+- Real FITS file support (HST, JWST, Chandra composites)
+- Richardson-Lucy PSF deconvolution
+- Photon–Dark-Photon entanglement overlay with full mathematical model
+- Interactive sliders for Ω_PD and fringe scale
+- Before / After comparison view
+- Export raw and processed FITS files + PNG comparisons
+- Ready for batch processing extension
 
 ---
 
-## Batch processing
+## Screenshots
 
-Click **Batch Process Folder** to process every FITS file in a directory automatically. Converted images are saved as PNGs in a `qci_output/` subfolder alongside the originals.
+*(Add your generated images here once uploaded)*
 
----
-
-## Supported FITS formats
-
-- Single-extension FITS (most common — HST, JWST Level-2 calibrated)
-- Multi-extension FITS (MEF) — automatically finds the first image HDU
-- Compressed FITS (`.fz`, `.fits.gz`)
-- 2D and 3D data cubes (cubes are averaged along axis 0)
-- NaN / Inf values are replaced with zero before processing
+- Bullet Cluster Before / After
+- Abell 1689 Before / After  
+- Abell 209 Before / After
 
 ---
 
-## Output tabs
+## Installation & Running
 
-| Tab | Contents |
-|-----|---------|
-| **Input** | Raw FITS data, normalised to [0, 1] |
-| **PSF Corrected** | After Wiener deconvolution |
-| **Neural Enhanced** | After EDSR ×2 super-resolution |
-| **Entangled Overlay** | PDP fringe colormap (blue → magenta → amber) |
-| **Before / After** | Side-by-side input vs final output |
+### Option 1: Run from Source (Recommended for Development)
 
----
-
-## Requirements
-
-```
-customtkinter>=5.2.0
-matplotlib>=3.7.0
-numpy>=1.24.0
-astropy>=5.3.0
-scipy>=1.11.0
-opencv-python>=4.8.0
-torch>=2.0.0
-```
-
-Save as `requirements.txt` and install with `pip install -r requirements.txt`.
-
----
-
-## Troubleshooting
-
-**`ModuleNotFoundError` on startup**  
-The app checks dependencies at launch and prints the exact `pip install` command needed.
-
-**`No image data found in FITS file`**  
-Your FITS may have all image data in a non-primary HDU (common with Spitzer, XMM-Newton). Try opening it with `astropy.io.fits.info(your_file.fits)` to see the HDU structure.
-
-**App window is too large / too small**  
-Resize the window freely — the layout is dynamic. Minimum size is 1100×700.
-
-**Neural SR is very slow**  
-Install CUDA PyTorch for GPU acceleration, or reduce image size before loading. The model runs in ~0.5s on GPU and ~3–8s on CPU for a typical 2048×2048 FITS.
-
-**Exported PNG looks different from the tab preview**  
-Matplotlib's colour rendering can vary slightly by platform. The exported file uses the raw NumPy array directly via OpenCV, so it is more faithful to the actual data values.
-
----
-
-## Changelog
-
-| Version | Date | Notes |
-|---------|------|-------|
-| 2.1 | 2026-03-22 | Bug fixes: pipeline stubs wired, FITS loader fixed, EDSR residual corrected, PSF normalisation fixed, PDP amplitude guard added |
-| 2.0 | 2026-01-xx | Initial public release |
-
----
-
-## Licence
-
-© 2025–2026 Tony E. Ford.  
-Released for research and educational use.  
-Commercial use requires written permission — contact [tlcagford@gmail.com](mailto:tlcagford@gmail.com).
-
----
-
-## Related projects
-
-- [Primordial PDP Entanglement](https://sourceforge.net/projects/primordial-pdp-entanglement/) — core PDP physics framework
-- [PDP Astronomical Image Framework](https://sourceforge.net/projects/astronomical-image-refiner/) — SourceForge image pipeline
-- [OmniSim / PDPBioGen](https://sourceforge.net/projects/pdpbiogen/) — multi-scale biological integration framework
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/tlcagford/QCI_AstroEntangle_Refiner.git
+   cd QCI_AstroEntangle_Refiner

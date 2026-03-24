@@ -1,31 +1,37 @@
 # ========================================================
-# QCI AstroEntangle Refiner v4.0
+# QCI AstroEntangle Refiner v4.0.1
 # Full Photon-Dark-Photon Entangled FDM Framework
 # Author: Tony E Ford
 # Email: tlcagford@gmail.com
 # ========================================================
 
-import customtkinter as ctk
-from tkinter import filedialog, messagebox
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import numpy as np
-from astropy.io import fits
-from astropy.convolution import Gaussian2DKernel
-from scipy.signal import convolve2d
-import cv2
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import os
-from datetime import datetime
+import sys
+try:
+    import customtkinter as ctk
+    from tkinter import filedialog, messagebox
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    import numpy as np
+    from astropy.io import fits
+    from astropy.convolution import Gaussian2DKernel
+    from scipy.signal import convolve2d
+    import cv2
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    import os
+    from datetime import datetime
+except ImportError as e:
+    print(f"❌ Missing dependency: {e}")
+    print("Please run: pip install -r requirements.txt")
+    sys.exit(1)
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# ====================== FULL PDP MODEL (v4.0) ======================
+# ====================== FULL PDP MODEL ======================
 class PDPEntanglementModel:
-    """Complete Photon-Dark-Photon Entanglement Model matching the visualizer"""
+    """Complete Photon-Dark-Photon Entanglement Model"""
     def __init__(self, omega_pd=0.20, fringe_scale=45.0):
         self.omega_pd = omega_pd
         self.fringe_scale = fringe_scale
@@ -35,12 +41,11 @@ class PDPEntanglementModel:
         return rho_c / (1 + (r / r_c)**2)**8
 
     def interference_density(self, psi_t, psi_d, delta_phi=np.pi/2):
-        """Full interference term: |ψ_t|² + |ψ_d|² + 2 Re(ψ_t* ψ_d e^{iΔφ})"""
+        """Full interference term"""
         interference = 2 * np.real(psi_t.conj() * psi_d * np.exp(1j * delta_phi))
         return np.abs(psi_t)**2 + np.abs(psi_d)**2 + interference
 
     def apply_full_pdp(self, image, r_c=74.0, omega_pd=0.20):
-        """Apply full entangled FDM model"""
         h, w = image.shape
         y, x = np.ogrid[:h, :w]
         center = (h//2, w//2)
@@ -55,11 +60,11 @@ class PDPEntanglementModel:
         return np.clip(result, image.min(), None)
 
 
-# ====================== MAIN APP v4.0 ======================
+# ====================== MAIN APP v4.0.1 ======================
 class QCI_AstroEntangle_Refiner(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("QCI AstroEntangle Refiner v4.0 - Tony E Ford")
+        self.title("QCI AstroEntangle Refiner v4.0.1 - Tony E Ford")
         self.geometry("1700x1100")
 
         # Sidebar
@@ -73,7 +78,6 @@ class QCI_AstroEntangle_Refiner(ctk.CTk):
         ctk.CTkButton(sidebar, text="Run Full Pipeline", command=self.run_pipeline, height=60, fg_color="#00cc66").pack(pady=15, padx=30, fill="x")
         ctk.CTkButton(sidebar, text="Export Results", command=self.export, height=50).pack(pady=15, padx=30, fill="x")
 
-        # Sliders
         ctk.CTkLabel(sidebar, text="Ω_PD (Entanglement)", font=ctk.CTkFont(size=14)).pack(pady=(30,5))
         self.slider_omega = ctk.CTkSlider(sidebar, from_=0.05, to=0.50, number_of_steps=45)
         self.slider_omega.set(0.20)
@@ -84,7 +88,6 @@ class QCI_AstroEntangle_Refiner(ctk.CTk):
         self.slider_fringe.set(45)
         self.slider_fringe.pack(pady=8, padx=30, fill="x")
 
-        # Tabs
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=15, pady=15)
 
@@ -96,35 +99,41 @@ class QCI_AstroEntangle_Refiner(ctk.CTk):
     def load_fits(self):
         path = filedialog.askopenfilename(filetypes=[("FITS files", "*.fits *.fit *.fz")])
         if path:
-            with fits.open(path) as hdul:
-                self.raw = hdul[0].data.astype(np.float32)
-                if len(self.raw.shape) == 3:
-                    self.raw = np.mean(self.raw, axis=0)
-            self.show_image("Input", self.raw, "Raw Input FITS")
-            messagebox.showinfo("Loaded", f"Successfully loaded:\n{os.path.basename(path)}")
+            try:
+                with fits.open(path) as hdul:
+                    self.raw = hdul[0].data.astype(np.float32)
+                    if len(self.raw.shape) == 3:
+                        self.raw = np.mean(self.raw, axis=0)
+                self.show_image("Input", self.raw, "Raw Input FITS")
+                messagebox.showinfo("Loaded", f"Successfully loaded:\n{os.path.basename(path)}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load FITS:\n{e}")
 
     def run_pipeline(self):
         if self.raw is None:
             return messagebox.showwarning("Error", "Please load a FITS file first!")
 
-        # 1. Simple PSF Deconvolution
-        kernel = Gaussian2DKernel(x_stddev=2.5).array
-        data = np.maximum(self.raw, 0)
-        self.refined = self.richardson_lucy(data, kernel, iterations=20)
+        try:
+            # 1. PSF Deconvolution
+            kernel = Gaussian2DKernel(x_stddev=2.5).array
+            data = np.maximum(self.raw, 0)
+            self.refined = self.richardson_lucy(data, kernel, iterations=20)
 
-        # 2. Full Photon-Dark-Photon Entanglement
-        model = PDPEntanglementModel(
-            omega_pd=self.slider_omega.get(),
-            fringe_scale=self.slider_fringe.get()
-        )
-        self.entangled = model.apply_full_pdp(self.refined)
+            # 2. Full PDP Entanglement
+            model = PDPEntanglementModel(
+                omega_pd=self.slider_omega.get(),
+                fringe_scale=self.slider_fringe.get()
+            )
+            self.entangled = model.apply_full_pdp(self.refined)
 
-        # Display results
-        self.show_image("Neural Enhanced", self.refined, "Neural Enhanced (PSF + SR)")
-        self.show_image("Entangled Overlay", self.entangled, "Photon–Dark-Photon Entangled FDM Overlay")
-        self.show_comparison()
+            # Display
+            self.show_image("Neural Enhanced", self.refined, "Neural Enhanced (PSF + SR)")
+            self.show_image("Entangled Overlay", self.entangled, "Photon–Dark-Photon Entangled FDM Overlay")
+            self.show_comparison()
 
-        messagebox.showinfo("Pipeline Complete", "v4.0 Full PDP Model Applied Successfully!")
+            messagebox.showinfo("Success", "v4.0 Full PDP Model Applied Successfully!")
+        except Exception as e:
+            messagebox.showerror("Pipeline Error", f"Error during processing:\n{e}")
 
     def richardson_lucy(self, image, psf, iterations=20, eps=1e-12):
         estimate = np.full(image.shape, np.mean(image))
@@ -165,12 +174,15 @@ class QCI_AstroEntangle_Refiner(ctk.CTk):
             return messagebox.showwarning("No Results", "Run the pipeline first!")
         folder = filedialog.askdirectory(title="Select Export Folder")
         if folder:
-            ts = datetime.now().strftime("%Y%m%d_%H%M")
-            base = os.path.join(folder, f"QCI_Result_{ts}")
-            os.makedirs(base, exist_ok=True)
-            fits.writeto(os.path.join(base, "raw.fits"), self.raw, overwrite=True)
-            fits.writeto(os.path.join(base, "entangled.fits"), self.entangled, overwrite=True)
-            messagebox.showinfo("Exported", f"All results saved to:\n{base}")
+            try:
+                ts = datetime.now().strftime("%Y%m%d_%H%M")
+                base = os.path.join(folder, f"QCI_Result_{ts}")
+                os.makedirs(base, exist_ok=True)
+                fits.writeto(os.path.join(base, "raw.fits"), self.raw, overwrite=True)
+                fits.writeto(os.path.join(base, "entangled.fits"), self.entangled, overwrite=True)
+                messagebox.showinfo("Exported", f"All results saved to:\n{base}")
+            except Exception as e:
+                messagebox.showerror("Export Error", str(e))
 
 if __name__ == "__main__":
     app = QCI_AstroEntangle_Refiner()

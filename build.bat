@@ -25,10 +25,12 @@ echo This may take a few minutes...
 pyinstaller --onefile ^
             --windowed ^
             --name "QCI_AstroEntangle_Refiner_v4.0" ^
-            --icon=logo.ico ^
-            --add-data "logo.png;." ^
+--icon=logo.ico ^
+--add-data "logo.png;." ^
             --clean ^
             QCI_AstroEntangle_Refiner.py
+
+
 
 echo.
 echo ========================================================

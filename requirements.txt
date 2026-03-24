@@ -1,0 +1,10 @@
+customtkinter
+matplotlib
+numpy
+astropy
+scipy
+opencv-python
+torch
+torchvision
+torchaudio
+pyinstaller

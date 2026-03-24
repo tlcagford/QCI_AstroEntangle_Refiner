@@ -1,10 +1,18 @@
+<<<<<<< HEAD
 # Open and fix the requirements.txt
 cat > requirements.txt << 'EOF'
+=======
+torch
+torchvision
+torchaudio
+pyinstaller
+>>>>>>> f80f8cb525e51be45ee2787f4b37866cb1148611
 customtkinter
 matplotlib
 numpy
 astropy
 scipy
+<<<<<<< HEAD
 opencv-python-headless
  https://download.pytorch.org/whl/cpu:
 torch
@@ -13,3 +21,8 @@ torchaudio
 eof:
 :shellscheck
  https://pypi.org/project/Addons-Tkinter/#files
+=======
+opencv-python
+pyinstaller
+torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+>>>>>>> f80f8cb525e51be45ee2787f4b37866cb1148611

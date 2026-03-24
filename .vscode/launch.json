@@ -2,6 +2,15 @@
     // .vscode/launch.json for QCI AstroEntangle Refiner v4.0 (Python)
     "version": "0.2.0",
     "configurations": [
+{
+    "name": "Attach by Process ID",
+    "processId": "${command:PickProcess}",
+    "request": "attach",
+    "skipFiles": [
+        "<node_internals>/**"
+    ],
+    "type": "node"
+},        
         
         {
             "name": "🚀 Run QCI AstroEntangle Refiner v4.0",

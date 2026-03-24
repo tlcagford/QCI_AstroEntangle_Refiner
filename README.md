@@ -46,8 +46,17 @@ It allows researchers to:
 *(Add your generated images here once uploaded)*
 
 - Bullet Cluster Before / After
-- Abell 1689 Before / After  
+- ![Before   Bullet Cluster](https://github.com/user-attachments/assets/e9217133-460c-40af-97ab-4149599bbdb3)
+- ![After Bullet Cluster](https://github.com/user-attachments/assets/11ca83e9-ad93-49ca-8c80-08959b22c8ba)
+
+- Abell 1689 Before / After
+- ![Before Abell-1689](https://github.com/user-attachments/assets/c61ed9b4-99f3-43e9-b701-79d9d2f6d85f)
+-![After Abell-1689](https://github.com/user-attachments/assets/a5c5eca5-6b66-4bbc-bf97-e4afe0a16cac)
+
+
 - Abell 209 Before / After
+-![Before Abell-209](https://github.com/user-attachments/assets/6cede7a9-8749-4b9f-835d-8bc1386acae5)
+-![After Abell-209](https://github.com/user-attachments/assets/6b85d4a2-e767-4158-8530-36a3ca5f9056)
 
 ---
 

@@ -7,3 +7,4 @@ opencv-python>=4.8.0
 torch>=2.0.0
 # Additional physics requirements
 scikit-image>=0.21.0
+pyinstaller

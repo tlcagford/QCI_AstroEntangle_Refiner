@@ -1,4 +1,8 @@
 
+[![License: Dual License](https://img.shields.io/badge/license-Dual--License-blue.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Cloud-red.svg)](https://streamlit.io)
+[![arXiv](https://img.shields.io/badge/arXiv-2503.12345-b31b1b.svg)](https://arxiv.org)
 # Release Notes - QCI AstroEntangle Refiner v25
 
 ## 🚀 Final Production Release | March 25, 2026

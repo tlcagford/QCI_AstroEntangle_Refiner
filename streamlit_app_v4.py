@@ -10,7 +10,7 @@ import io
 from datetime import datetime
 
 # Import physics engine
-from pdp_physics_working import PhotonDarkPhotonModel
+from pdp_physics_working import PhotonDarkPhotonModel, H, HBAR, C, ALPHA, M_E, EV, K_B, EPS0
 st.set_page_config(
     page_title="QCI AstroEntangle Refiner v4.0",
     page_icon="🔬",

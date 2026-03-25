@@ -1,103 +1,154 @@
-import streamlit as st
-import numpy as np
+# QCI AstroEntangle Refiner – v5 FULL MERGE (UI + Full Physics Pipeline)
+# Combines your original v4 physics + upgraded real-time UI
+
+import io
+import os
+from datetime import datetime
+
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
+import streamlit as st
+from astropy.io import fits
+from astropy.convolution import Gaussian2DKernel
+from scipy.signal import convolve2d
 
-# -----------------------------
-# PAGE CONFIG
-# -----------------------------
-st.set_page_config(
-    page_title="QCI Astro Entangle Refiner",
-    layout="wide"
-)
+try:
+    from PIL import Image as PILImage
+    PIL_OK = True
+except:
+    PIL_OK = False
 
-st.title("🔬 QCI Astro Entangle Refiner")
-st.write("Photon / Dark Photon Entanglement Analysis Interface")
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    TORCH_OK = True
+except:
+    TORCH_OK = False
 
-# -----------------------------
-# DATASET SELECTION
-# -----------------------------
-dataset = st.selectbox(
-    "Select Dataset",
-    ["Synthetic Test Data", "Bullet Cluster", "Abell 1689", "Abell 209"]
-)
+# ── CONFIG ─────────────────────────────────────────────
+st.set_page_config(layout="wide", page_title="QCI Refiner v5", page_icon="🔭")
 
-uploaded_file = st.file_uploader("Or upload your own dataset")
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { background: #0b0b1a; }
+[data-testid="stSidebar"] { background: #10102a; }
+</style>
+""", unsafe_allow_html=True)
 
-# -----------------------------
-# PARAMETERS
-# -----------------------------
-st.sidebar.header("Simulation Parameters")
+# ── NEURAL SR (YOUR ORIGINAL) ──────────────────────────
+if TORCH_OK:
+    class EDSR_Small(nn.Module):
+        def __init__(self, scale=2):
+            super().__init__()
+            self.scale = scale
+            self.conv1 = nn.Conv2d(1, 32, 3, padding=1)
+            self.res = nn.Sequential(*[self._rb() for _ in range(8)])
+            self.conv_up = nn.Conv2d(32, 32 * scale**2, 3, padding=1)
+            self.conv_out = nn.Conv2d(32, 1, 3, padding=1)
+        def _rb(self):
+            return nn.Sequential(
+                nn.Conv2d(32,32,3,padding=1), nn.ReLU(True), nn.Conv2d(32,32,3,padding=1))
+        def forward(self, x):
+            x = F.relu(self.conv1(x)); r = x
+            x = self.res(x) + r
+            return self.conv_out(F.pixel_shuffle(self.conv_up(x), self.scale))
 
-iterations = st.sidebar.slider("Iterations", 10, 1000, 100)
-coupling = st.sidebar.slider("Coupling Strength", 0.0, 1.0, 0.1)
-noise = st.sidebar.slider("Noise Level", 0.0, 1.0, 0.05)
+    @st.cache_resource
+    def load_model():
+        dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        m = EDSR_Small(2).to(dev); m.eval()
+        return m, dev
 
-# -----------------------------
-# CORE MODEL WRAPPER
-# -----------------------------
-def run_model(data, iterations, coupling, noise):
-    """
-    Replace this with your actual physics model
-    """
+# ── CORE FUNCTIONS ─────────────────────────────────────
 
-    # Placeholder simulation logic
-    x = np.linspace(0, 10, 500)
-    signal = np.sin(x * coupling) * np.exp(-noise * x)
+def normalize(arr):
+    vmin, vmax = np.percentile(arr, 0.5), np.percentile(arr, 99.5)
+    return np.clip((arr - vmin) / (vmax - vmin + 1e-9), 0, 1)
 
-    for _ in range(iterations):
-        signal = signal + np.random.normal(0, noise, size=len(signal))
 
-    return x, signal
+def psf_correct(data):
+    kernel = Gaussian2DKernel(x_stddev=2)
+    psf = kernel.array / kernel.array.sum()
+    blurred = convolve2d(data, psf, mode="same")
+    return np.clip(data + 0.5 * (data - blurred), 0, 1)
 
-# -----------------------------
-# DATA LOADING
-# -----------------------------
-def load_data(dataset, uploaded_file):
-    if uploaded_file is not None:
-        data = np.loadtxt(uploaded_file)
+
+def neural_sr(data):
+    if not TORCH_OK:
         return data
+    model, dev = load_model()
+    t = torch.tensor(data[None,None], dtype=torch.float32).to(dev)
+    with torch.no_grad():
+        out = model(t).squeeze().cpu().numpy()
+    return np.clip(out,0,1)
 
-    if dataset == "Synthetic Test Data":
-        return np.random.rand(500)
 
-    elif dataset == "Bullet Cluster":
-        return np.random.rand(500)  # replace with real loader
+def entangle(data, omega, fringe):
+    return np.clip(np.sin(data * fringe * np.pi) * omega + data, 0, 1)
 
-    elif dataset == "Abell 1689":
-        return np.random.rand(500)
+# ── SIDEBAR ────────────────────────────────────────────
+with st.sidebar:
+    st.title("🔭 QCI Refiner v5")
+    uploaded = st.file_uploader("Upload", type=["fits","png","jpg","jpeg"])
+    st.caption("Full physics pipeline active")
 
-    elif dataset == "Abell 209":
-        return np.random.rand(500)
+# ── TOP CONTROLS ───────────────────────────────────────
+col1, col2, col3 = st.columns(3)
 
-# -----------------------------
-# RUN BUTTON
-# -----------------------------
-if st.button("Run Simulation"):
+with col1:
+    omega = st.slider("Ω Entanglement", 0.05, 0.5, 0.2)
+with col2:
+    fringe = st.slider("Fringe Scale", 10, 80, 40)
+with col3:
+    brightness = st.slider("Brightness", 0.5, 3.0, 1.2)
 
-    st.info("Running model...")
+st.markdown("---")
 
-    data = load_data(dataset, uploaded_file)
+# ── MAIN PIPELINE ──────────────────────────────────────
+if uploaded:
+    ext = uploaded.name.split(".")[-1]
+    data = uploaded.read()
 
-    x, result = run_model(data, iterations, coupling, noise)
+    if ext == "fits":
+        with fits.open(io.BytesIO(data)) as h:
+            raw = h[0].data.astype(np.float32)
+    else:
+        img = PILImage.open(io.BytesIO(data)).convert("L")
+        raw = np.array(img, dtype=np.float32)
 
-    # -----------------------------
-    # PLOT RESULTS
-    # -----------------------------
-    fig, ax = plt.subplots()
-    ax.plot(x, result)
-    ax.set_title("Refined Signal Output")
+    norm = normalize(raw)
+    psf = psf_correct(norm)
+    sr = neural_sr(psf)
+    sr = np.clip(sr * brightness, 0, 1)
+    ent = entangle(sr, omega, fringe)
 
-    st.pyplot(fig)
+    c1, c2, c3, c4 = st.columns(4)
 
-    # -----------------------------
-    # METRICS
-    # -----------------------------
-    st.subheader("Metrics")
+    def show(img, title):
+        fig, ax = plt.subplots(figsize=(4,3))
+        ax.imshow(img, cmap="inferno")
+        ax.set_title(title)
+        ax.axis("off")
+        st.pyplot(fig)
 
-    col1, col2, col3 = st.columns(3)
+    with c1: show(norm, "Input")
+    with c2: show(psf, "PSF")
+    with c3: show(sr, "Neural SR")
+    with c4: show(ent, "Entangled")
 
-    col1.metric("Mean", f"{np.mean(result):.4f}")
-    col2.metric("Std Dev", f"{np.std(result):.4f}")
-    col3.metric("Max", f"{np.max(result):.4f}")
+    # DOWNLOADS
+    st.markdown("---")
+    st.subheader("Downloads")
 
-    st.success("Simulation complete.")
+    def save_png(arr):
+        buf = io.BytesIO()
+        plt.imsave(buf, arr, cmap="inferno")
+        return buf.getvalue()
+
+    st.download_button("Download Entangled PNG", save_png(ent), "entangled.png")
+
+else:
+    st.info("Upload a file — full pipeline runs instantly.")

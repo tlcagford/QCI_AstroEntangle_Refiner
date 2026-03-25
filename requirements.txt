@@ -1,6 +1,12 @@
-streamlit>=1.28.0
+# QCI AstroEntangle Refiner v4.0 — requirements
+# Install with: pip install -r requirements.txt
+# For GPU support replace 'torch' with the CUDA wheel from pytorch.org
+
+customtkinter>=5.2.0
 numpy>=1.24.0
 matplotlib>=3.7.0
 astropy>=5.3.0
 scipy>=1.11.0
 pillow>=10.0.0
+torch>=2.0.0
+opencv-python>=4.8.0

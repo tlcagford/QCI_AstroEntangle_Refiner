@@ -42,7 +42,6 @@ def run_1d_simulation(epsilon, m_dark, E, cluster, kappa_scale):
         phase = delta * x / (4 * E)
         P.append(epsilon**2 * np.sin(phase)**2)
         
-        # Simple convergence profile
         if cluster == "Bullet Cluster":
             k = 0.6 * np.exp(-x**2 / 4) + 0.4 * np.exp(-(x-3)**2 / 2)
         else:
@@ -79,27 +78,29 @@ if uploaded_file is not None:
         with fits.open(uploaded_file) as hdul:
             image = np.nan_to_num(hdul[0].data.astype(float))
         
-        # Normalize
-        img_norm = (image - image.min()) / (image.max() - image.min() + 1e-12)
+        # Robust normalization to [0, 1]
+        img_min = image.min()
+        img_max = image.max()
+        if img_max - img_min < 1e-12:
+            img_norm = np.zeros_like(image, dtype=float)
+        else:
+            img_norm = (image - img_min) / (img_max - img_min)
         
-        # Simple PDP conversion (using your existing physics style)
-        # For demo we apply a radial probability map
+        # Simple radial PDP conversion
         h, w = img_norm.shape
         y, x = np.mgrid[0:h, 0:w]
-        cx, cy = w/2, h/2
+        cx, cy = w / 2.0, h / 2.0
         radius = np.sqrt((x - cx)**2 + (y - cy)**2) / max(h, w) * 10
         
-        ne = 2e-3 * (1 + radius**2)**(-1.2) if cluster == "Bullet Cluster" else \
-             3e-3 * (1 + radius**2)**(-1.5) if cluster == "Abell 1689" else \
-             1e-3 * (1 + radius**2)**(-1.3)
+        ne = (2e-3 if cluster == "Bullet Cluster" else 3e-3 if cluster == "Abell 1689" else 1e-3) * (1 + radius**2)**(-1.2)
         omega_p2 = ne * 1e-12
         delta = m_dark**2 - omega_p2
         phase = delta * radius / (4 * E)
         P_map = epsilon**2 * np.sin(phase)**2
         
-        pdp_image = img_norm * (1 - P_map)   # simple depletion
+        pdp_image = img_norm * (1 - P_map)   # depletion due to conversion
         
-        # Lensing (magnification only for now)
+        # Lensing
         if apply_lensing and kappa_scale > 0:
             if cluster == "Bullet Cluster":
                 r1 = np.sqrt((x - cx)**2 + (y - cy*0.9)**2) / max(w, h) * 10
@@ -111,19 +112,54 @@ if uploaded_file is not None:
             
             magnification = 1 + 2 * kappa_map
             lensed_image = pdp_image * magnification
-            lensed_image = np.clip(lensed_image, 0, None)
+            lensed_image = np.clip(lensed_image, 0, 1)
         else:
             lensed_image = pdp_image
             kappa_map = np.zeros_like(img_norm)
         
-        # Display
-        st.subheader("Processed FITS Image")
-        c1, c2, c3 = st.columns(3)
-        with c1: st.image(img_norm, caption="Original", clamp=True, use_column_width=True)
-        with c2: st.image(pdp_image, caption="After PDP Conversion", clamp=True, use_column_width=True)
-        with c3: st.image(lensed_image, caption="After PDP + Lensing", clamp=True, use_column_width=True)
+        # ====================== DISPLAY IMAGES (Fixed) ======================
+        st.subheader("Processed FITS Images – Before vs After")
         
-        if apply_lensing:
-            st.image(kappa_map, caption="Convergence κ Map (Dark Matter)", clamp=True, use_column_width=True)
+        # Use a clean 3-column layout with better display options
+        c1, c2, c3 = st.columns(3)
+        
+        with c1:
+            st.image(img_norm, 
+                     caption="📸 Original Image (normalized)", 
+                     clamp=True, 
+                     use_column_width=True)
+        
+        with c2:
+            st.image(pdp_image, 
+                     caption="🔄 After PDP Conversion Only", 
+                     clamp=True, 
+                     use_column_width=True)
+        
+        with c3:
+            st.image(lensed_image, 
+                     caption="🌌 After PDP + Gravitational Lensing", 
+                     clamp=True, 
+                     use_column_width=True)
+        
+        # Extra maps below
+        st.subheader("Detail Maps")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.image(P_map, caption="Conversion Probability Map", clamp=True, use_column_width=True)
+        with col_b:
+            if apply_lensing:
+                st.image(kappa_map, caption="Convergence κ Map (Dark Matter Lensing)", clamp=True, use_column_width=True)
+            else:
+                st.info("Lensing disabled")
+        
+        # Optional raw difference
+        diff = np.abs(img_norm - pdp_image)
+        st.image(diff, caption="Absolute Difference (Original vs PDP)", clamp=True, use_column_width=True)
 
-st.success("✅ Running with simplified PDP + Lensing (compatible with your current pdp_physics_working.py)")
+        st.success("✅ Images should now display clearly!")
+
+else:
+    st.info("👆 Upload a FITS image in the sidebar to see Before / After results.")
+
+st.markdown("### Current Parameters")
+st.write(f"Cluster: **{cluster}** | ε = **{epsilon:.2e}** | m_dark = **{m_dark:.2e}** eV | E = **{E}** eV")

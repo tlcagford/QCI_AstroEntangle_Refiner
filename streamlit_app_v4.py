@@ -374,4 +374,156 @@ if uploaded_file is not None:
         st.markdown("## 🎨 Overlay Views")
         
         pdp_overlay = create_overlay(original_norm, conversion_map, 'red', overlay_transparency)
-        lensing_overlay
+        lensing_overlay = create_overlay(original_norm, lensing_map, 'blue', overlay_transparency)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Original + PDP Conversion (red = converted)**")
+            st.image(pdp_overlay, use_column_width=True, clamp=True)
+        with col2:
+            st.markdown("**Original + Lensing (blue = mass)**")
+            st.image(lensing_overlay, use_column_width=True, clamp=True)
+        
+        # Interference Pattern (new from FDM two-field)
+        st.markdown("---")
+        st.markdown("## 🌊 Two-Field FDM Interference Pattern")
+        st.markdown("From ψ_total = ψ_light + ψ_dark e^(iΔφ)")
+        
+        fig_interference, ax = plt.subplots(figsize=(10, 6))
+        im = ax.imshow(interference_pattern, cmap='viridis', origin='lower')
+        ax.set_title("FDM Two-Field Interference | λ = h/(mΔv)")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        plt.colorbar(im, ax=ax, label="Interference Intensity")
+        st.pyplot(fig_interference)
+        plt.close(fig_interference)
+        
+        # Physics Metrics
+        st.markdown("---")
+        st.markdown("## 📊 Physics Metrics")
+        
+        mean_conversion = float(np.mean(conversion_map))
+        max_conversion = float(np.max(conversion_map))
+        correlation = np.corrcoef(conversion_map.flatten(), lensing_map.flatten())[0, 1]
+        if np.isnan(correlation):
+            correlation = 0.0
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Entropy (bits)", f"{metadata.get('entropy', 0):.3f}")
+        with col2:
+            st.metric("Concurrence", f"{metadata.get('concurrence', 0):.2e}")
+        with col3:
+            st.metric("Purity", f"{metadata.get('purity', 1):.6f}")
+        with col4:
+            st.metric("Avg Conversion", f"{metadata.get('avg_conversion_probability', 0):.2%}")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Fringe Spacing", f"{metadata.get('fringe_spacing_kpc', 0):.2f} kpc")
+            st.caption("λ = h/(mΔv)")
+        with col2:
+            st.metric("Ω_PD (Entanglement)", f"{metadata.get('entanglement_observable', 0):.2e}")
+            st.caption("= 2ε")
+        with col3:
+            st.metric("Correlation", f"{correlation:.3f}")
+            st.caption("Conversion vs Dark Matter")
+        
+        # Solitonic Core Profile (FDM feature)
+        with st.expander("🌀 FDM Solitonic Core Profile"):
+            st.markdown("**Solitonic core solution to the cusp-core problem:**")
+            st.latex(r"\rho(r) = \frac{\rho_c}{[1 + (r/r_c)^2]^8}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                r_core_kpc = st.slider("Core radius (kpc)", 0.1, 5.0, 1.0, 0.1)
+                rho_core = st.slider("Peak density (M☉/kpc³)", 1e6, 1e8, 1.9e7, format="%.1e")
+            with col2:
+                st.markdown(f"**Derived from FDM mass m = {dark_photon_mass:.2e} eV**")
+                st.markdown(f"**de Broglie wavelength:** {metadata.get('fringe_spacing_kpc', 0):.2f} kpc")
+            
+            r = np.linspace(0, 10, 500)
+            r_norm = r / r_core_kpc
+            rho = rho_core / (1 + r_norm**2)**8
+            
+            fig_sol, ax = plt.subplots(figsize=(8, 5))
+            ax.plot(r, rho, 'b-', linewidth=2)
+            ax.fill_between(r, rho, alpha=0.3)
+            ax.set_xlabel("Radius (kpc)")
+            ax.set_ylabel("Density (M☉/kpc³)")
+            ax.set_title("FDM Solitonic Core Profile")
+            ax.set_yscale('log')
+            ax.grid(True, alpha=0.3)
+            st.pyplot(fig_sol)
+            plt.close(fig_sol)
+        
+        # Parameter Information
+        with st.expander("🔬 FDM Two-Field Physics Parameters"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Cluster:** {cluster}")
+                st.write(f"**Redshift:** {params['redshift']:.3f}")
+                st.write(f"**Distance:** {params['distance_mpc']:.0f} Mpc")
+                st.write(f"**Pixel Scale:** {pixel_scale:.3f} arcsec/pixel")
+            with col2:
+                st.write(f"**Mixing ε:** {mixing_epsilon:.2e}")
+                st.write(f"**Dark Photon Mass:** {dark_photon_mass:.2e} eV")
+                st.write(f"**Photon Energy:** {photon_energy:.1f} eV")
+                st.write(f"**Relative Velocity:** {params['velocity']/1000:.0f} km/s")
+            
+            st.markdown("---")
+            st.markdown("**Implemented FDM Equations:**")
+            st.latex(r"\text{Klein-Gordon:} \quad \Box\phi + m^2\phi = 0")
+            st.latex(r"\text{Schrödinger-Poisson:} \quad i\partial_t\psi = -\frac{\nabla^2\psi}{2m} + \Phi\psi")
+            st.latex(r"\text{Two-field interference:} \quad \rho = |\psi_l|^2 + |\psi_d|^2 + 2\text{Re}(\psi_l^*\psi_d e^{i\Delta\phi})")
+            st.latex(r"\text{Fringe spacing:} \quad \lambda = \frac{h}{m\Delta v}")
+            st.latex(r"\text{Solitonic core:} \quad \rho(r) = \frac{\rho_c}{[1 + (r/r_c)^2]^8}")
+        
+        # Download Buttons
+        with st.expander("📥 Download Results"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.download_button("📸 Download Original", image_to_bytes(original_norm), "original.png")
+            with col2:
+                st.download_button("🔄 Download PDP Conversion", image_to_bytes(entanglement_map), "pdp_conversion.png")
+            with col3:
+                st.download_button("🌌 Download PDP + Lensing", image_to_bytes(lensed_image), "pdp_lensing.png")
+        
+        st.success("✅ Analysis complete! Adjust parameters to explore different FDM scenarios.")
+        
+    else:
+        st.error("Failed to load image.")
+else:
+    st.info("👈 Please upload an image to begin analysis")
+    
+    with st.expander("ℹ️ About v4.5 - FDM Two-Field Physics"):
+        st.markdown("""
+        ### New in v4.5: Full FDM Two-Field Implementation
+        
+        This version implements the complete Fuzzy Dark Matter (FDM) framework from:
+        **[Cosmic Entanglement Visualizer](https://cosmic-entanglement-visualizer-f4f21576.base44.app/Equations)**
+        
+        **Implemented Equations:**
+        - **Klein-Gordon**: Relativistic wave equation for scalar field dark matter
+        - **Schrödinger-Poisson**: Non-relativistic limit for galactic-scale structure
+        - **Two-field interference**: ψ_total = ψ_light + ψ_dark e^(iΔφ)
+        - **Fringe spacing**: λ = h/(mΔv) - de Broglie wavelength of FDM
+        - **Solitonic core**: ρ(r) = ρ_c / [1 + (r/r_c)²]⁸ - solves cusp-core problem
+        
+        **New Features:**
+        - 🤖 **AI Data Download**: Query MAST/NED databases for real astronomical data
+        - 🌊 **Interference Pattern Visualization**: See two-field FDM fringes
+        - 🌀 **Solitonic Core Profile**: Visualize FDM density profiles
+        
+        **Try these parameters:**
+        - m_dark = 10⁻²² eV (FDM candidate mass)
+        - ε = 10⁻⁸ (typical mixing parameter)
+        - Photon energy = 1000 eV (X-ray observations)
+        """)
+
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; color: #666;">
+QCI AstroEntangle Refiner v4.5 | FDM Two-Field Physics | Based on Cosmic Entanglement Visualizer Framework
+</div>
+""", unsafe_allow_html=True)

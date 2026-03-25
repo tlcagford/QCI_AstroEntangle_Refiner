@@ -1,5 +1,5 @@
-# QCI AstroEntangle Refiner – v24 PRESETS FIXED
-# Fixed: Scale selection index error, all presets working
+# QCI AstroEntangle Refiner – v25 FINAL FIXED
+# All presets working, no index errors
 
 import io
 import numpy as np
@@ -7,21 +7,19 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from scipy.ndimage import gaussian_filter, sobel
-from scipy.fft import fft2, fftshift
 from astropy.io import fits
 from PIL import Image, ImageDraw, ImageFont
 import warnings
-import time
+import json
 from dataclasses import dataclass
 from typing import Dict
-import json
 
 warnings.filterwarnings('ignore')
 
 # ── PAGE CONFIG ─────────────────────────────────────────────
 st.set_page_config(
     layout="wide", 
-    page_title="QCI Refiner v24 - Presets Fixed", 
+    page_title="QCI Refiner v25 - Final", 
     page_icon="🔭",
     initial_sidebar_state="expanded"
 )
@@ -45,7 +43,6 @@ class PhysicsOutput:
     rgb_composite: np.ndarray
     mixing_angle: float
     entanglement_entropy: float
-    processing_time: float
     metadata: Dict
 
 
@@ -62,10 +59,8 @@ def add_physics_annotations(image_array, metadata, scale_kpc=100, image_pixels=5
     draw = ImageDraw.Draw(img_pil)
     
     try:
-        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
         font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11)
     except:
-        font_medium = ImageFont.load_default()
         font_small = ImageFont.load_default()
     
     h, w = image_array.shape[:2]
@@ -83,15 +78,15 @@ def add_physics_annotations(image_array, metadata, scale_kpc=100, image_pixels=5
     
     # North indicator
     draw.line([w - 30, 30, w - 30, 60], fill='white', width=2)
-    draw.text((w - 38, 15), "N", fill='white', font=font_medium)
+    draw.text((w - 38, 15), "N", fill='white', font=font_small)
     
     # Info box
     info_lines = [
-        f"QCI Refiner v24",
+        f"QCI Refiner v25",
         f"Ω = {metadata['omega']:.2f} | Fringe = {metadata['fringe']}",
         f"Mixing = {metadata['mixing_angle']:.3f}",
         f"S_entropy = {metadata['entanglement_entropy']:.3f}",
-        f"λ_FDM = {metadata.get('wavelength_kpc', scale_kpc / metadata['fringe'] * 8):.1f} kpc",
+        f"λ = {metadata.get('wavelength_kpc', scale_kpc / metadata['fringe'] * 8):.1f} kpc",
     ]
     
     box_y_start = 10
@@ -100,12 +95,6 @@ def add_physics_annotations(image_array, metadata, scale_kpc=100, image_pixels=5
     
     for i, line in enumerate(info_lines):
         draw.text((15, box_y_start + 5 + i * 20), line, fill='white', font=font_small)
-    
-    # Formulas
-    formulas = [r"ρ(r) ∝ [sin(kr)/kr]²", r"λ = h/(m v)", r"S = -Tr(ρ log ρ)"]
-    formula_y_start = h - 70
-    for i, formula in enumerate(formulas):
-        draw.text((w - 190, formula_y_start + i * 18), formula, fill='cyan', font=font_small)
     
     return np.array(img_pil) / 255.0
 
@@ -124,7 +113,6 @@ def create_comparison_with_labels(original, entangled, metadata, scale_kpc=100):
     scale_bar_px = 100
     scale_bar_kpc = (scale_bar_px / w) * scale_kpc
     scale_x_start = 20
-    scale_x_end = scale_x_start + scale_bar_px
     scale_y = h - 30
     
     ax2.add_patch(Rectangle((scale_x_start, scale_y), scale_bar_px, 5, 
@@ -139,9 +127,6 @@ def create_comparison_with_labels(original, entangled, metadata, scale_kpc=100):
     info_text += f"S={metadata['entanglement_entropy']:.3f}"
     ax2.text(15, 25, info_text, color='white', fontsize=9,
              bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
-    
-    ax2.text(w - 170, h - 30, r'$\rho(r) \propto [\sin(kr)/(kr)]^2$', 
-             color='cyan', fontsize=8, bbox=dict(boxstyle='round', facecolor='black', alpha=0.5))
     
     ax2.set_title("After: Photon-Dark-Photon Entangled\nFDM Overlays (Tony Ford Model)", 
                   color='white', fontsize=10)
@@ -263,7 +248,6 @@ def apply_primordial_entanglement(image, omega, fringe, brightness=1.2, scale_kp
         rgb_composite=rgb,
         mixing_angle=mixing,
         entanglement_entropy=entropy,
-        processing_time=0.0,
         metadata=metadata
     )
 
@@ -296,12 +280,12 @@ def display_image(img_array, title, cmap='inferno', show_colorbar=True, figsize=
         st.pyplot(fig)
         plt.close(fig)
     except Exception as e:
-        st.write(f"⚠️ {title}: {str(e)[:30]}")
+        st.write(f"⚠️ {title}")
 
 
 # ── SIDEBAR ─────────────────────────────────────────────
 with st.sidebar:
-    st.title("🔭 QCI Refiner v24")
+    st.title("🔭 QCI Refiner v25")
     st.markdown("### Primordial Photon-DarkPhoton Entanglement")
     st.markdown("*With FDM Soliton Physics*")
     st.markdown("---")
@@ -311,39 +295,44 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🎯 Cluster Presets")
     
-    selected_cluster = st.selectbox("Load Preset", ["Custom"] + list(CLUSTER_PRESETS.keys()))
+    # Preset selection
+    preset_names = list(CLUSTER_PRESETS.keys())
+    selected_preset = st.selectbox("Load Preset", ["Custom"] + preset_names)
     
-    if selected_cluster != "Custom":
-        preset = CLUSTER_PRESETS[selected_cluster]
-        st.info(f"**{selected_cluster}**\n{preset['desc']}")
-        omega_val = preset["omega"]
-        fringe_val = preset["fringe"]
-        scale_val = preset["scale_kpc"]
-    else:
-        omega_val = 0.70
-        fringe_val = 65
-        scale_val = 100
+    # Initialize default values
+    omega_default = 0.70
+    fringe_default = 65
+    scale_default = 100
+    
+    if selected_preset != "Custom":
+        preset = CLUSTER_PRESETS[selected_preset]
+        omega_default = preset["omega"]
+        fringe_default = preset["fringe"]
+        scale_default = preset["scale_kpc"]
+        st.info(f"**{selected_preset}**\n{preset['desc']}")
     
     st.markdown("---")
     st.markdown("### ⚛️ Parameters")
     
-    omega = st.slider("Ω Entanglement", 0.1, 1.0, omega_val, 0.05)
-    fringe = st.slider("Fringe Scale", 20, 120, fringe_val, 5)
+    omega = st.slider("Ω Entanglement", 0.1, 1.0, omega_default, 0.05)
+    fringe = st.slider("Fringe Scale", 20, 120, fringe_default, 5)
     brightness = st.slider("Brightness", 0.8, 1.8, 1.2, 0.05)
     
-    # Safe scale selection
-    if scale_val in SCALE_OPTIONS:
-        scale_index = SCALE_OPTIONS.index(scale_val)
+    # Safe scale selection - find closest match
+    if scale_default in SCALE_OPTIONS:
+        scale_index = SCALE_OPTIONS.index(scale_default)
     else:
-        scale_index = 1  # Default to 100 kpc
+        # Find closest value
+        scale_index = min(range(len(SCALE_OPTIONS)), key=lambda i: abs(SCALE_OPTIONS[i] - scale_default))
+    
     scale_kpc = st.selectbox("Scale (kpc)", SCALE_OPTIONS, index=scale_index)
     
     st.markdown("---")
-    st.markdown("### 🏷️ Annotation Options")
+    st.markdown("### 🏷️ Options")
     add_annotations = st.checkbox("Add Annotations", value=True)
     
     st.markdown("---")
-    st.caption("Tony Ford Model | v24 - Presets Fixed")
+    st.caption("Tony Ford Model | v25 - Final")
 
 
 # ── MAIN APP ─────────────────────────────────────────────
@@ -407,7 +396,7 @@ if uploaded is not None:
     # Success
     st.success(f"✅ Complete | Mixing={physics.mixing_angle:.3f} | Entropy={physics.entanglement_entropy:.3f}")
     
-    # ── ANNOTATED COMPARISON ─────────────────────────────────────────────
+    # ── COMPARISON ─────────────────────────────────────────────
     st.markdown("### 📊 Comparison")
     st.pyplot(comparison_fig)
     plt.close(comparison_fig)
@@ -500,4 +489,4 @@ else:
         st.caption(f"Ω={preset['omega']}, Fringe={preset['fringe']}, Scale={preset['scale_kpc']} kpc - {preset['desc']}")
 
 st.markdown("---")
-st.markdown("🔭 **QCI AstroEntangle Refiner v24** | Presets Fixed | Tony Ford Model")
+st.markdown("🔭 **QCI AstroEntangle Refiner v25** | Final Working Version | Tony Ford Model")

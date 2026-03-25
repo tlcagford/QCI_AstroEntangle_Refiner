@@ -185,19 +185,49 @@ def psf_correct(data: np.ndarray) -> np.ndarray:
     return np.clip(data + 0.5 * (data - blurred), 0, 1).astype(np.float32)
 
 
+MAX_SR_DIM = 1024  # cap to avoid OOM on large images
+
+def _resize_arr(arr, w, h):
+    if CV2_OK:
+        return cv2.resize(arr, (w, h), interpolation=cv2.INTER_AREA)
+    if PIL_OK:
+        pil = PILImage.fromarray((arr * 255).astype(np.uint8))
+        pil = pil.resize((w, h), PILImage.LANCZOS)
+        return np.array(pil, dtype=np.float32) / 255.0
+    return arr
+
 def neural_sr(data: np.ndarray) -> np.ndarray:
+    H, W = data.shape
+    scale_down = max(H, W) > MAX_SR_DIM
+    if scale_down:
+        factor = MAX_SR_DIM / max(H, W)
+        sh, sw = int(H * factor), int(W * factor)
+        data_in = _resize_arr(data, sw, sh)
+    else:
+        data_in = data
+
     if TORCH_OK:
         model, dev = load_sr_model()
-        t = torch.tensor(data[None, None], dtype=torch.float32).to(dev)
+        t = torch.tensor(data_in[None, None], dtype=torch.float32).to(dev)
         with torch.no_grad():
             out = model(t).squeeze().cpu().numpy()
-        return np.clip(out, 0, 1).astype(np.float32)
-    if CV2_OK:
-        u8 = (data * 255).astype(np.uint8)
+        out = np.clip(out, 0, 1).astype(np.float32)
+    elif CV2_OK:
+        u8 = (data_in * 255).astype(np.uint8)
         bl = cv2.GaussianBlur(u8, (0, 0), 3)
-        sh = cv2.addWeighted(u8, 1.5, bl, -0.5, 0)
-        return sh.astype(np.float32) / 255.0
-    return data.copy()
+        out = cv2.addWeighted(u8, 1.5, bl, -0.5, 0).astype(np.float32) / 255.0
+    else:
+        out = data_in.copy()
+
+    if scale_down:
+        if CV2_OK:
+            out = cv2.resize(out, (W, H), interpolation=cv2.INTER_CUBIC)
+        elif PIL_OK:
+            pil = PILImage.fromarray((out * 255).astype(np.uint8))
+            pil = pil.resize((W, H), PILImage.LANCZOS)
+            out = np.array(pil, dtype=np.float32) / 255.0
+
+    return np.clip(out, 0, 1).astype(np.float32)
 
 
 def boost(img: np.ndarray, brightness: float, saturation: float) -> np.ndarray:
@@ -351,7 +381,7 @@ norm = normalize(raw)
 
 with st.expander("📷 Input Preview (auto-stretched)", expanded=True):
     fig = make_fig(norm, "inferno", f"Input – {uploaded.name}  (inferno, percentile stretch)")
-    st.image(fig_bytes(fig), width=None)
+    st.image(fig_bytes(fig), use_container_width=True)
     plt.close(fig)
 
 if not run_btn:
@@ -385,19 +415,19 @@ t_in, t_sr, t_ent, t_ba, t_raw = st.tabs([
 
 with t_in:
     fig = make_fig(norm, "inferno", "Input – percentile stretch (inferno)")
-    st.image(fig_bytes(fig), width=None)
+    st.image(fig_bytes(fig), use_container_width=True)
     plt.close(fig)
 
 with t_sr:
     fig = make_fig(sr, "viridis",
         f"Neural SR  brightness={brightness:.1f}  saturation={saturation:.1f}  (viridis)")
-    st.image(fig_bytes(fig), width=None)
+    st.image(fig_bytes(fig), use_container_width=True)
     plt.close(fig)
 
 with t_ent:
     fig = make_fig(ent, cmap_choice,
         f"Entanglement Overlay — Ω={omega:.2f}  fringe={fringe_scale}px  ({cmap_choice})")
-    st.image(fig_bytes(fig), width=None)
+    st.image(fig_bytes(fig), use_container_width=True)
     plt.close(fig)
 
 with t_ba:
@@ -405,12 +435,12 @@ with t_ba:
     with c1:
         st.markdown("**Before (input)**")
         fig = make_fig(norm, "inferno", "Before", figsize=(6,5))
-        st.image(fig_bytes(fig), width=None)
+        st.image(fig_bytes(fig), use_container_width=True)
         plt.close(fig)
     with c2:
         st.markdown(f"**After (entangled – {cmap_choice})**")
         fig = make_fig(ent, cmap_choice, "After", figsize=(6,5))
-        st.image(fig_bytes(fig), width=None)
+        st.image(fig_bytes(fig), use_container_width=True)
         plt.close(fig)
 
 with t_raw:

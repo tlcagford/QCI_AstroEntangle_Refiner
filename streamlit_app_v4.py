@@ -212,3 +212,12 @@ if run_button:
 
 st.markdown("---")
 st.markdown("© 2026 Tony E. Ford | [GitHub](https://github.com/tlcagford/QCI_AstroEntangle_Refiner)")
+st.markdown(r"""
+### 🔬 Physics Behind the Analysis
+
+The interference pattern is governed by:
+\[
+P_{\gamma \to A'} = 4\epsilon^2 \sin^2\left(\frac{\Delta m^2 L}{4E}\right)
+\]
+...
+""")

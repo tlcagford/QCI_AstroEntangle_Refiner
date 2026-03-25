@@ -1,13 +1,12 @@
 """
 Photon-Dark-Photon Entanglement Physics Engine - Enhanced v4
-Includes: Full PDP formulas, PSF corrections, Neural enhancements
+Full PDP formulas, PSF corrections, Neural enhancements (without skimage)
 """
 
 import numpy as np
 import math
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, uniform_filter
 from scipy.signal import wiener
-from skimage import exposure, restoration
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -35,7 +34,7 @@ class PhysicalConstants:
         return eV * 1.602176634e-19
 
 
-class PhotonDarkPhotonEngine:
+class PhotonDarkPhotonModel:
     """Enhanced physics engine with full PDP formulas, PSF, and neural corrections"""
     
     def __init__(self):
@@ -44,117 +43,98 @@ class PhotonDarkPhotonEngine:
         self.entanglement_map = None
         self.conversion_probability_map = None
         self.enhanced_map = None
+        self.original_norm = None
         
     def calculate_oscillation_probability(self, mixing_epsilon, dark_photon_mass_eV, 
                                           distance_m, E_photon_eV):
         """
         Full quantum oscillation probability for photon-dark photon conversion
         P(γ → A') = 4ε² sin²(Δm² L / 4E)
-        
-        Parameters:
-        - mixing_epsilon: kinetic mixing parameter
-        - dark_photon_mass_eV: dark photon mass in eV/c²
-        - distance_m: propagation distance in meters
-        - E_photon_eV: photon energy in eV
         """
         # Convert mass to kg
         mass_kg = self.const.eV_to_kg(dark_photon_mass_eV)
         
         # Calculate Δm² = m_dark² - m_photon² ≈ m_dark²
-        # Convert to SI units (kg²)
         delta_m2 = mass_kg ** 2
-        
-        # Convert to natural units (eV²) for convenience
-        delta_m2_eV2 = dark_photon_mass_eV ** 2
         
         # Convert photon energy to Joules
         E_J = self.const.eV_to_J(E_photon_eV)
         
-        # Calculate oscillation length: L_osc = 4πE/Δm²
-        # In natural units: L_osc = 4πE / Δm²
-        # Convert to meters
-        L_osc = (4 * np.pi * E_photon_eV) / (delta_m2_eV2 + 1e-30)
-        L_osc_meters = L_osc * (self.const.hbar * self.const.c / self.const.eV) / (1e-15)  # Scale appropriately
+        # Calculate argument
+        argument = (delta_m2 * distance_m * self.const.c) / (4 * self.const.hbar * E_J + 1e-30)
         
         # Calculate oscillation probability
-        argument = (delta_m2 * distance_m * self.const.c) / (4 * self.const.hbar * E_J)
         prob = 4 * mixing_epsilon**2 * np.sin(argument)**2
         
         # Clip probability to physical range [0,1]
         prob = np.clip(prob, 0, 1)
         
+        # Oscillation length in meters
+        L_osc = (4 * np.pi * E_photon_eV) / (dark_photon_mass_eV**2 + 1e-30)
+        L_osc_meters = L_osc * 1e-15  # Scale factor
+        
         return prob, L_osc_meters, argument
     
     def apply_psf_correction(self, image, fwhm_arcsec=0.05, pixel_scale_arcsec=0.05):
-        """
-        Apply PSF deconvolution to correct for telescope beam smearing
-        
-        Parameters:
-        - image: 2D numpy array
-        - fwhm_arcsec: Full Width Half Maximum of PSF in arcseconds
-        - pixel_scale_arcsec: Pixel scale in arcseconds per pixel
-        """
+        """Apply PSF deconvolution to correct for telescope beam smearing"""
         # Convert FWHM to sigma in pixels
         fwhm_pixels = fwhm_arcsec / pixel_scale_arcsec
         sigma = fwhm_pixels / 2.355  # FWHM = 2.355 * sigma
         
-        if sigma < 0.5:
-            # PSF smaller than pixel, minimal correction
+        if sigma < 0.5 or sigma > 50:
             return image
         
-        # Create Gaussian PSF
-        size = int(max(11, 2 * int(3 * sigma) + 1))
-        if size % 2 == 0:
-            size += 1
-        
-        y, x = np.ogrid[-size//2:size//2+1, -size//2:size//2+1]
-        psf = np.exp(-(x**2 + y**2) / (2 * sigma**2))
-        psf = psf / psf.sum()
-        
-        # Apply Wiener deconvolution
         try:
-            restored = restoration.wiener(image, psf, noise=0.01)
-        except:
-            # Fallback to simple Gaussian blur removal
-            restored = image - 0.5 * gaussian_filter(image, sigma=sigma/2)
+            # Simple Gaussian blur removal (Wiener-like)
+            blurred = gaussian_filter(image, sigma=sigma)
+            # High-pass filter to sharpen
+            restored = image + 0.5 * (image - blurred)
             restored = np.clip(restored, 0, 1)
-        
-        return restored
+            return restored
+        except:
+            return image
     
     def neural_enhancement(self, image, method='clahe'):
         """
-        Apply neural-inspired image enhancement
+        Neural-inspired image enhancement (no skimage required)
         
         Methods:
-        - 'clahe': Contrast Limited Adaptive Histogram Equalization
-        - 'retinex': Simple Retinex-inspired enhancement
+        - 'clahe': Adaptive histogram equalization
         - 'unsharp': Unsharp masking
+        - 'retinex': Simple Retinex-inspired
         """
         enhanced = image.copy()
         
         if method == 'clahe':
-            # CLAHE - similar to what neural networks learn
-            enhanced = exposure.equalize_adapthist(enhanced, clip_limit=0.03)
-            
-        elif method == 'retinex':
-            # Simple Retinex-inspired enhancement
-            blurred = gaussian_filter(enhanced, sigma=10)
-            enhanced = np.log(enhanced + 1e-10) - np.log(blurred + 1e-10)
+            # Adaptive contrast enhancement
+            kernel_size = max(3, int(min(image.shape) / 20))
+            # Local mean
+            local_mean = uniform_filter(image, size=kernel_size)
+            # Local standard deviation
+            local_std = np.sqrt(uniform_filter(image**2, size=kernel_size) - local_mean**2)
+            # Adaptive contrast
+            enhanced = (image - local_mean) / (local_std + 0.1)
+            enhanced = (enhanced - enhanced.min()) / (enhanced.max() - enhanced.min() + 1e-10)
             enhanced = np.clip(enhanced, 0, 1)
             
         elif method == 'unsharp':
             # Unsharp masking
-            blurred = gaussian_filter(enhanced, sigma=2)
-            enhanced = enhanced + 0.5 * (enhanced - blurred)
+            blurred = gaussian_filter(image, sigma=2)
+            enhanced = image + 0.5 * (image - blurred)
+            enhanced = np.clip(enhanced, 0, 1)
+            
+        elif method == 'retinex':
+            # Simple Retinex-inspired enhancement
+            blurred = gaussian_filter(image, sigma=10)
+            enhanced = np.log(image + 1e-10) - np.log(blurred + 1e-10)
+            enhanced = (enhanced - enhanced.min()) / (enhanced.max() - enhanced.min() + 1e-10)
             enhanced = np.clip(enhanced, 0, 1)
         
         return enhanced
     
     def calculate_conversion_map(self, image_norm, mixing_epsilon, dark_photon_mass_eV,
                                   distance_m, E_photon_eV, pixel_scale_m):
-        """
-        Calculate full conversion probability map including spatial variations
-        """
+        """Calculate full conversion probability map including spatial variations"""
         ny, nx = image_norm.shape
         X, Y = np.meshgrid(np.arange(nx), np.arange(ny))
         
@@ -162,16 +142,20 @@ class PhotonDarkPhotonEngine:
         center_x, center_y = nx/2, ny/2
         radial_distance = np.sqrt((X - center_x)**2 + (Y - center_y)**2) * pixel_scale_m
         
-        # Calculate oscillation probability for each pixel
+        # Calculate oscillation probability for each pixel (vectorized for speed)
         prob_map = np.zeros_like(image_norm)
         
-        for i in range(ny):
-            for j in range(nx):
-                prob, _, _ = self.calculate_oscillation_probability(
-                    mixing_epsilon, dark_photon_mass_eV, 
-                    radial_distance[i, j], E_photon_eV
-                )
-                prob_map[i, j] = prob
+        # Precompute constants
+        mass_kg = self.const.eV_to_kg(dark_photon_mass_eV)
+        delta_m2 = mass_kg ** 2
+        E_J = self.const.eV_to_J(E_photon_eV)
+        prefactor = 4 * mixing_epsilon**2
+        coeff = (delta_m2 * self.const.c) / (4 * self.const.hbar * E_J + 1e-30)
+        
+        # Vectorized calculation
+        argument = coeff * radial_distance
+        prob_map = prefactor * np.sin(argument)**2
+        prob_map = np.clip(prob_map, 0, 1)
         
         # Apply image-dependent modulation
         prob_map = prob_map * (0.5 + 0.5 * image_norm)
@@ -184,12 +168,11 @@ class PhotonDarkPhotonEngine:
                               distance_mpc=430, E_photon_eV=1.0,
                               apply_psf=True, apply_neural=True,
                               psf_fwhm_arcsec=0.05):
-        """
-        Enhanced initialization with full physics
-        """
+        """Enhanced initialization with full physics"""
         
         # Normalize image
-        img_norm = (image_data - image_data.min()) / (image_data.max() - image_data.min() + 1e-10)
+        self.original_norm = (image_data - image_data.min()) / (image_data.max() - image_data.min() + 1e-10)
+        img_norm = self.original_norm.copy()
         
         # Calculate pixel scales
         distance_m = distance_mpc * 3.085677581e22
@@ -215,7 +198,6 @@ class PhotonDarkPhotonEngine:
         )
         
         # Create final entanglement/conversion map
-        # Apply conversion probability to image
         self.conversion_probability_map = prob_map
         entanglement = img_enhanced * (1 - prob_map) + prob_map * (1 - img_enhanced)
         entanglement = np.clip(entanglement, 0, 1)
@@ -223,7 +205,6 @@ class PhotonDarkPhotonEngine:
         # Store result
         self.entanglement_map = entanglement
         self.enhanced_map = img_enhanced
-        self.original_norm = img_norm
         
         # Calculate entropy (information-theoretic)
         hist, _ = np.histogram(img_norm.flatten(), bins=50)
@@ -234,6 +215,7 @@ class PhotonDarkPhotonEngine:
         # Calculate quantum concurrence (entanglement measure)
         avg_prob = np.mean(prob_map)
         concurrence = 2 * avg_prob * (1 - avg_prob) * mixing_epsilon
+        concurrence = np.clip(concurrence, 0, 1)
         
         # Calculate purity
         purity = 1 - concurrence**2
@@ -273,7 +255,7 @@ class PhotonDarkPhotonEngine:
 
 
 # Compatibility aliases for v4
-PhotonDarkPhotonModel = PhotonDarkPhotonEngine
+PhotonDarkPhotonEngine = PhotonDarkPhotonModel
 H = PhysicalConstants.h
 HBAR = PhysicalConstants.hbar
 C = PhysicalConstants.c
@@ -286,9 +268,8 @@ EPS0 = 8.8541878128e-12  # Vacuum permittivity
 
 # Test function
 if __name__ == "__main__":
-    # Quick test
     test_img = np.random.rand(100, 100)
-    engine = PhotonDarkPhotonEngine()
+    engine = PhotonDarkPhotonModel()
     metadata = engine.initialize_from_image(
         test_img, 
         dark_photon_mass_eV=1e-22, 
@@ -301,5 +282,3 @@ if __name__ == "__main__":
     print(f"Entropy: {metadata['entropy']:.5f} bits")
     print(f"Concurrence: {metadata['concurrence']:.5f}")
     print(f"Avg Conversion Prob: {metadata['avg_conversion_probability']:.5f}")
-    print(f"PSF Corrected: {metadata['psf_corrected']}")
-    print(f"Neural Enhanced: {metadata['neural_enhanced']}")

@@ -6,9 +6,9 @@ Full PDP formulas, PSF corrections, Neural enhancements (without skimage)
 import numpy as np
 import math
 from scipy.ndimage import gaussian_filter, uniform_filter
-from scipy.signal import wiener
 import warnings
 warnings.filterwarnings('ignore')
+
 
 class PhysicalConstants:
     """Physical constants in SI units"""
@@ -60,8 +60,17 @@ class PhotonDarkPhotonModel:
         # Convert photon energy to Joules
         E_J = self.const.eV_to_J(E_photon_eV)
         
+        # Avoid division by zero
+        if E_J < 1e-30:
+            E_J = 1e-30
+        
         # Calculate argument
-        argument = (delta_m2 * distance_m * self.const.c) / (4 * self.const.hbar * E_J + 1e-30)
+        denominator = 4 * self.const.hbar * E_J
+        if denominator < 1e-40:
+            denominator = 1e-40
+            
+        argument = (delta_m2 * distance_m * self.const.c) / denominator
+        argument = np.clip(argument, -1e10, 1e10)  # Prevent overflow
         
         # Calculate oscillation probability
         prob = 4 * mixing_epsilon**2 * np.sin(argument)**2
@@ -70,7 +79,8 @@ class PhotonDarkPhotonModel:
         prob = np.clip(prob, 0, 1)
         
         # Oscillation length in meters
-        L_osc = (4 * np.pi * E_photon_eV) / (dark_photon_mass_eV**2 + 1e-30)
+        delta_m2_eV2 = dark_photon_mass_eV ** 2
+        L_osc = (4 * np.pi * E_photon_eV) / (delta_m2_eV2 + 1e-30)
         L_osc_meters = L_osc * 1e-15  # Scale factor
         
         return prob, L_osc_meters, argument
@@ -81,7 +91,7 @@ class PhotonDarkPhotonModel:
         fwhm_pixels = fwhm_arcsec / pixel_scale_arcsec
         sigma = fwhm_pixels / 2.355  # FWHM = 2.355 * sigma
         
-        if sigma < 0.5 or sigma > 50:
+        if sigma < 0.5 or sigma > 50 or not np.isfinite(sigma):
             return image
         
         try:
@@ -105,30 +115,38 @@ class PhotonDarkPhotonModel:
         """
         enhanced = image.copy()
         
-        if method == 'clahe':
-            # Adaptive contrast enhancement
-            kernel_size = max(3, int(min(image.shape) / 20))
-            # Local mean
-            local_mean = uniform_filter(image, size=kernel_size)
-            # Local standard deviation
-            local_std = np.sqrt(uniform_filter(image**2, size=kernel_size) - local_mean**2)
-            # Adaptive contrast
-            enhanced = (image - local_mean) / (local_std + 0.1)
-            enhanced = (enhanced - enhanced.min()) / (enhanced.max() - enhanced.min() + 1e-10)
-            enhanced = np.clip(enhanced, 0, 1)
-            
-        elif method == 'unsharp':
-            # Unsharp masking
-            blurred = gaussian_filter(image, sigma=2)
-            enhanced = image + 0.5 * (image - blurred)
-            enhanced = np.clip(enhanced, 0, 1)
-            
-        elif method == 'retinex':
-            # Simple Retinex-inspired enhancement
-            blurred = gaussian_filter(image, sigma=10)
-            enhanced = np.log(image + 1e-10) - np.log(blurred + 1e-10)
-            enhanced = (enhanced - enhanced.min()) / (enhanced.max() - enhanced.min() + 1e-10)
-            enhanced = np.clip(enhanced, 0, 1)
+        # Ensure image is valid
+        if np.all(image == image[0, 0]):
+            return image
+        
+        try:
+            if method == 'clahe':
+                # Adaptive contrast enhancement
+                kernel_size = max(3, int(min(image.shape) / 20))
+                kernel_size = min(kernel_size, min(image.shape) // 2)
+                # Local mean
+                local_mean = uniform_filter(image, size=kernel_size)
+                # Local standard deviation
+                local_std = np.sqrt(uniform_filter(image**2, size=kernel_size) - local_mean**2)
+                # Adaptive contrast
+                enhanced = (image - local_mean) / (local_std + 0.1)
+                enhanced = (enhanced - enhanced.min()) / (enhanced.max() - enhanced.min() + 1e-10)
+                enhanced = np.clip(enhanced, 0, 1)
+                
+            elif method == 'unsharp':
+                # Unsharp masking
+                blurred = gaussian_filter(image, sigma=2)
+                enhanced = image + 0.5 * (image - blurred)
+                enhanced = np.clip(enhanced, 0, 1)
+                
+            elif method == 'retinex':
+                # Simple Retinex-inspired enhancement
+                blurred = gaussian_filter(image, sigma=10)
+                enhanced = np.log(image + 1e-10) - np.log(blurred + 1e-10)
+                enhanced = (enhanced - enhanced.min()) / (enhanced.max() - enhanced.min() + 1e-10)
+                enhanced = np.clip(enhanced, 0, 1)
+        except:
+            enhanced = image
         
         return enhanced
     
@@ -142,23 +160,37 @@ class PhotonDarkPhotonModel:
         center_x, center_y = nx/2, ny/2
         radial_distance = np.sqrt((X - center_x)**2 + (Y - center_y)**2) * pixel_scale_m
         
-        # Calculate oscillation probability for each pixel (vectorized for speed)
-        prob_map = np.zeros_like(image_norm)
-        
         # Precompute constants
         mass_kg = self.const.eV_to_kg(dark_photon_mass_eV)
         delta_m2 = mass_kg ** 2
         E_J = self.const.eV_to_J(E_photon_eV)
+        
+        # Avoid division by zero
+        if E_J < 1e-30:
+            E_J = 1e-30
+        
+        # Calculate argument with safe values
         prefactor = 4 * mixing_epsilon**2
-        coeff = (delta_m2 * self.const.c) / (4 * self.const.hbar * E_J + 1e-30)
+        denominator = 4 * self.const.hbar * E_J
+        if denominator < 1e-40:
+            denominator = 1e-40
+        
+        coeff = (delta_m2 * self.const.c) / denominator
+        coeff = np.clip(coeff, -1e20, 1e20)  # Prevent overflow
         
         # Vectorized calculation
         argument = coeff * radial_distance
+        argument = np.clip(argument, -1e10, 1e10)
         prob_map = prefactor * np.sin(argument)**2
         prob_map = np.clip(prob_map, 0, 1)
         
-        # Apply image-dependent modulation
-        prob_map = prob_map * (0.5 + 0.5 * image_norm)
+        # Apply image-dependent modulation (ensure image_norm is valid)
+        img_safe = np.clip(image_norm, 0, 1)
+        prob_map = prob_map * (0.5 + 0.5 * img_safe)
+        prob_map = np.clip(prob_map, 0, 1)
+        
+        # Handle any NaN or Inf values
+        prob_map = np.nan_to_num(prob_map, nan=0.0, posinf=0.0, neginf=0.0)
         
         return prob_map
     
@@ -170,23 +202,28 @@ class PhotonDarkPhotonModel:
                               psf_fwhm_arcsec=0.05):
         """Enhanced initialization with full physics"""
         
-        # Normalize image
-        self.original_norm = (image_data - image_data.min()) / (image_data.max() - image_data.min() + 1e-10)
+        # Validate input
+        if image_data is None:
+            raise ValueError("Image data is None")
+        
+        # Normalize image with safe bounds
+        img_min = float(image_data.min())
+        img_max = float(image_data.max())
+        
+        if img_max - img_min < 1e-10:
+            img_max = img_min + 1.0
+        
+        self.original_norm = (image_data - img_min) / (img_max - img_min + 1e-10)
+        self.original_norm = np.clip(self.original_norm, 0, 1)
         img_norm = self.original_norm.copy()
         
         # Calculate pixel scales
         distance_m = distance_mpc * 3.085677581e22
         pixel_scale_rad = pixel_scale_arcsec * (math.pi / (180 * 3600))
         pixel_scale_m = pixel_scale_rad * distance_m
-        # Calculate quantum concurrence (entanglement measure)
-avg_prob = np.mean(prob_map)
-concurrence = 2 * avg_prob * (1 - avg_prob) * mixing_epsilon
-concurrence = np.clip(concurrence, 0, 1)
-
-# Calculate purity
-purity = 1 - concurrence**2
-        # Apply PSF correction (telescope beam correction)
-        if apply_psf:
+        
+        # Apply PSF correction
+        if apply_psf and psf_fwhm_arcsec > 0:
             img_psf = self.apply_psf_correction(img_norm, psf_fwhm_arcsec, pixel_scale_arcsec)
         else:
             img_psf = img_norm
@@ -208,23 +245,31 @@ purity = 1 - concurrence**2
         entanglement = img_enhanced * (1 - prob_map) + prob_map * (1 - img_enhanced)
         entanglement = np.clip(entanglement, 0, 1)
         
-        # Store result
+        # Store results
         self.entanglement_map = entanglement
         self.enhanced_map = img_enhanced
         
         # Calculate entropy (information-theoretic)
-        hist, _ = np.histogram(img_norm.flatten(), bins=50)
+        hist, _ = np.histogram(img_norm.flatten(), bins=50, range=(0, 1))
         hist = hist[hist > 0]
-        prob = hist / len(img_norm.flatten())
-        entropy = -np.sum(prob * np.log2(prob + 1e-12))
+        if len(hist) > 0:
+            prob = hist / len(img_norm.flatten())
+            entropy = -np.sum(prob * np.log2(prob + 1e-12))
+        else:
+            entropy = 0.0
         
         # Calculate quantum concurrence (entanglement measure)
-        avg_prob = np.mean(prob_map)
-        concurrence = 2 * avg_prob * (1 - avg_prob) * mixing_epsilon
-        concurrence = np.clip(concurrence, 0, 1)
-        
-        # Calculate purity
-        purity = 1 - concurrence**2
+        if prob_map is not None and np.any(np.isfinite(prob_map)):
+            avg_prob = float(np.mean(prob_map))
+            # Ensure avg_prob is within [0,1]
+            avg_prob = np.clip(avg_prob, 0, 1)
+            concurrence = 2.0 * avg_prob * (1.0 - avg_prob) * float(mixing_epsilon)
+            concurrence = np.clip(concurrence, 0, 1)
+            purity = 1.0 - concurrence**2
+        else:
+            avg_prob = 0.0
+            concurrence = 0.0
+            purity = 1.0
         
         # Store metadata
         self.metadata = {
@@ -245,19 +290,19 @@ purity = 1 - concurrence**2
     
     def get_entanglement_map(self):
         """Return the computed entanglement map"""
-        return self.entanglement_map
+        return self.entanglement_map if self.entanglement_map is not None else np.zeros((10, 10))
     
     def get_conversion_map(self):
         """Return the conversion probability map"""
-        return self.conversion_probability_map
+        return self.conversion_probability_map if self.conversion_probability_map is not None else np.zeros((10, 10))
     
     def get_enhanced_map(self):
         """Return the enhanced image"""
-        return self.enhanced_map
+        return self.enhanced_map if self.enhanced_map is not None else np.zeros((10, 10))
     
     def get_metadata(self):
         """Return physics metadata"""
-        return self.metadata
+        return self.metadata if self.metadata else {}
 
 
 # Compatibility aliases for v4
@@ -274,6 +319,7 @@ EPS0 = 8.8541878128e-12  # Vacuum permittivity
 
 # Test function
 if __name__ == "__main__":
+    print("Testing Physics Engine v4...")
     test_img = np.random.rand(100, 100)
     engine = PhotonDarkPhotonModel()
     metadata = engine.initialize_from_image(
@@ -284,7 +330,8 @@ if __name__ == "__main__":
         apply_psf=True,
         apply_neural=True
     )
-    print("Enhanced Physics Engine v4 Working!")
-    print(f"Entropy: {metadata['entropy']:.5f} bits")
-    print(f"Concurrence: {metadata['concurrence']:.5f}")
-    print(f"Avg Conversion Prob: {metadata['avg_conversion_probability']:.5f}")
+    print("✅ Enhanced Physics Engine v4 Working!")
+    print(f"   Entropy: {metadata['entropy']:.5f} bits")
+    print(f"   Concurrence: {metadata['concurrence']:.5f}")
+    print(f"   Purity: {metadata['purity']:.5f}")
+    print(f"   Avg Conversion Prob: {metadata['avg_conversion_probability']:.5f}")

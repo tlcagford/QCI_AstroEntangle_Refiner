@@ -90,7 +90,8 @@ The app implements the complete theoretical framework from the **Cosmic Entangle
 ## 🚀 Quick Start
 
 ### Live Demo
-Access the live app: [https://qci-astroentangle-refiner.streamlit.app](https://qci-astroentangle-refiner.streamlit.app)
+Access the live app: [[https://qci-astroentangle-refiner.streamlit.app](https://qci-astroentangle-refiner.streamlit.app)](https://qciastroentanglerefiner-bvokybcfeykdyectyulckh.streamlit.app/)
+
 
 ### Local Installation
 

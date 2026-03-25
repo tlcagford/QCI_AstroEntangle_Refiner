@@ -1,6 +1,6 @@
 """
 QCI AstroEntangle Refiner v4.5 - Light Theme Edition
-Full FDM Two-Field Physics + AI Data Download + Mosaic Creator
+Full FDM Two-Field Physics + AI Data Download
 """
 
 import streamlit as st
@@ -12,8 +12,6 @@ from scipy.ndimage import gaussian_filter
 import io
 import warnings
 import re
-import urllib.request
-import json
 
 warnings.filterwarnings('ignore')
 
@@ -31,15 +29,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for LIGHT THEME
 st.markdown("""
 <style>
-    /* Main background - light gradient */
     .stApp {
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     }
-    
-    /* Header styling */
     .main-header {
         font-size: 2.5rem;
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -50,32 +44,22 @@ st.markdown("""
         margin-bottom: 0.5rem;
         font-weight: 700;
     }
-    
-    /* Subheader */
     .sub-header {
         text-align: center;
         color: #495057;
         margin-bottom: 2rem;
         font-size: 1.1rem;
     }
-    
-    /* Sidebar - light background */
     [data-testid="stSidebar"] {
         background-color: #ffffff;
         border-right: 1px solid #e0e0e0;
     }
-    
     [data-testid="stSidebar"] .stMarkdown {
         color: #212529;
     }
-    
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3 {
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
         color: #1e3c72;
     }
-    
-    /* Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         color: white;
@@ -90,13 +74,9 @@ st.markdown("""
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(30,60,114,0.3);
     }
-    
-    /* Sliders */
     .stSlider > div > div > div {
         background-color: #1e3c72;
     }
-    
-    /* Metrics */
     [data-testid="stMetricValue"] {
         color: #1e3c72;
         font-weight: 600;
@@ -104,8 +84,6 @@ st.markdown("""
     [data-testid="stMetricLabel"] {
         color: #495057;
     }
-    
-    /* Expanders */
     .streamlit-expanderHeader {
         background-color: #ffffff;
         border-radius: 8px;
@@ -113,79 +91,22 @@ st.markdown("""
         color: #1e3c72;
         font-weight: 500;
     }
-    .streamlit-expanderContent {
-        background-color: #fafbfc;
-        border-radius: 0 0 8px 8px;
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #ffffff;
-        border-radius: 8px 8px 0 0;
-        padding: 8px 20px;
-        color: #495057;
-        border: 1px solid #e9ecef;
-        border-bottom: none;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        color: white;
-    }
-    
-    /* Images */
     .stImage {
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         background-color: #ffffff;
         padding: 4px;
     }
-    
-    /* Captions */
     .stCaption {
         color: #6c757d;
         font-size: 0.8rem;
     }
-    
-    /* File uploader */
     [data-testid="stFileUploader"] {
         background-color: #ffffff;
         border: 2px dashed #dee2e6;
         border-radius: 12px;
         padding: 1rem;
     }
-    
-    /* Success/Info/Warning boxes */
-    .stAlert {
-        border-radius: 8px;
-    }
-    
-    /* Dataframe */
-    .dataframe {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    /* Loading spinner */
-    .stSpinner > div {
-        border-color: #1e3c72 !important;
-    }
-    
-    /* Selectbox */
-    [data-baseweb="select"] {
-        background-color: #ffffff;
-        border-radius: 8px;
-    }
-    
-    /* Number input */
-    [data-baseweb="input"] {
-        background-color: #ffffff;
-        border-radius: 8px;
-    }
-    
-    /* Dividers */
     hr {
         margin: 1.5rem 0;
         border: none;
@@ -195,40 +116,62 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Title
 st.markdown('<div class="main-header">🌌 QCI AstroEntangle Refiner v4.5</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Photon-Dark Photon Quantum Entanglement + FDM Two-Field Physics</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ============================================================================
-# Helper Functions
+# Helper Functions - FIXED for RGBA images
 # ============================================================================
 
 def load_image(uploaded_file):
-    """Load image from various formats"""
+    """Load image from various formats - Handles RGBA, RGB, and grayscale"""
     if uploaded_file is not None:
         file_extension = uploaded_file.name.split('.')[-1].lower()
         
         if file_extension in ['fits', 'fit']:
-            hdul = fits.open(uploaded_file)
-            image_data = hdul[0].data
-            if len(image_data.shape) == 3:
-                image_data = image_data[0]
-            if len(image_data.shape) == 2:
-                image_data = (image_data - image_data.min()) / (image_data.max() - image_data.min() + 1e-10)
-            else:
-                return None, None
-            try:
-                pixel_scale = abs(hdul[0].header['CDELT1']) * 3600
-            except:
-                pixel_scale = 0.05
-            return image_data, pixel_scale
+            with fits.open(uploaded_file) as hdul:
+                image_data = hdul[0].data
+                
+                if len(image_data.shape) == 3:
+                    image_data = image_data[0]
+                if len(image_data.shape) == 2:
+                    img_min = image_data.min()
+                    img_max = image_data.max()
+                    if img_max - img_min > 1e-10:
+                        image_data = (image_data - img_min) / (img_max - img_min)
+                    else:
+                        image_data = np.zeros_like(image_data)
+                else:
+                    return None, None
+                
+                try:
+                    pixel_scale = abs(hdul[0].header['CDELT1']) * 3600
+                except:
+                    pixel_scale = 0.05
+                    
+                return image_data, pixel_scale
+        
         else:
             img = Image.open(uploaded_file)
-            if img.mode == 'RGB':
-                img = img.convert('L')
-            image_data = np.array(img) / 255.0
+            
+            # Handle RGBA images (PNG with transparency)
+            if img.mode == 'RGBA':
+                # Create white background and composite
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])
+                img = background
+            elif img.mode == 'P':
+                img = img.convert('RGB')
+            elif img.mode not in ['RGB', 'L']:
+                img = img.convert('RGB')
+            
+            # Convert to grayscale
+            img_gray = img.convert('L')
+            image_data = np.array(img_gray) / 255.0
+            
             return image_data, 0.05
+    
     return None, None
 
 def create_overlay(original_img, overlay_map, color='red', transparency=0.5):
@@ -327,10 +270,7 @@ with st.sidebar:
 
 with st.expander("🤖 AI Data Download", expanded=False):
     st.markdown("### Fetch Astronomical Data from Online Databases")
-    st.markdown("Query MAST (HST/JWST), NED, and other archives.")
     
-    # Quick select buttons
-    st.markdown("**Quick Select:**")
     quick_cols = st.columns(4)
     quick_targets = ["Bullet Cluster", "Abell 2744", "Abell 520", "M87"]
     
@@ -342,64 +282,22 @@ with st.expander("🤖 AI Data Download", expanded=False):
     
     ai_query = st.text_input("Describe what data you want:", 
                               value=st.session_state.get('ai_query', ''),
-                              placeholder="e.g., 'Get JWST NIRCam images of Abell 2744'")
+                              placeholder="e.g., 'Get JWST images of Abell 2744'")
     
-    if st.button("🔍 Fetch Data", type="primary"):
-        if ai_query:
-            with st.spinner("🔭 Querying astronomical databases..."):
-                query_lower = ai_query.lower()
-                
-                target_list = ["Bullet Cluster", "1E 0657-56", "Abell 2744", "Abell 520", 
-                               "Abell 1689", "Abell 209", "M87", "Virgo Cluster", "Coma Cluster"]
-                
-                target = None
-                for t in target_list:
-                    if t.lower() in query_lower:
-                        target = t
-                        break
-                
-                if target is None:
-                    patterns = [r'of\s+([A-Z][a-z0-9\s]+)', r'images?\s+of\s+([A-Z][a-z0-9\s]+)']
-                    for pattern in patterns:
-                        match = re.search(pattern, ai_query)
-                        if match:
-                            target = match.group(1).strip()
-                            break
-                
-                observatory = None
-                if any(x in query_lower for x in ['jwst', 'webb']):
-                    observatory = "JWST"
-                elif any(x in query_lower for x in ['hst', 'hubble']):
-                    observatory = "HST"
-                
-                st.info(f"Searching: **{target or 'any'}** | Observatory: **{observatory or 'any'}**")
-                
-                if target:
-                    try:
-                        from astroquery.mast import Observations
-                        
-                        criteria = {'target_name': target}
-                        if observatory:
-                            criteria['obs_collection'] = observatory
-                        
-                        obs_table = Observations.query_criteria(**criteria)
-                        
-                        if obs_table is not None and len(obs_table) > 0:
-                            st.success(f"✅ Found **{len(obs_table)}** observations!")
-                            
-                            display_df = obs_table[['obs_id', 'obs_collection', 'target_name', 't_exptime', 'instrument_name']].to_pandas()
-                            st.dataframe(display_df.head(10), use_container_width=True)
-                            
-                            st.markdown(f"[🔗 Open in MAST Portal](https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html?searchQuery={{\\\"filters\\\":[{{\\\"paramName\\\":\\\"target_name\\\",\\\"values\\\":[\\\"{target}\\\"]}}]}})")
-                        else:
-                            st.warning(f"No data found for {target}")
-                    except Exception as e:
-                        st.error(f"MAST query error: {e}")
-                        st.markdown(f"[🔗 Search MAST manually for {target}](https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html?searchQuery={{\\\"filters\\\":[{{\\\"paramName\\\":\\\"target_name\\\",\\\"values\\\":[\\\"{target}\\\"]}}]}})")
-                else:
-                    st.info("Please specify a target name (e.g., 'Bullet Cluster', 'Abell 2744')")
-        else:
-            st.warning("Please enter a query or use Quick Select")
+    if st.button("🔍 Fetch Data", type="primary") and ai_query:
+        with st.spinner("Querying MAST..."):
+            target = None
+            for t in quick_targets + ["Abell 1689", "Abell 209", "Virgo", "Coma"]:
+                if t.lower() in ai_query.lower():
+                    target = t
+                    break
+            
+            if target:
+                st.success(f"Searching for {target}...")
+                st.markdown(f"[🔗 Search MAST for {target}](https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html?searchQuery={{\\\"filters\\\":[{{\\\"paramName\\\":\\\"target_name\\\",\\\"values\\\":[\\\"{target}\\\"]}}]}})")
+                st.info("Click the link above to access the MAST portal for direct downloads.")
+            else:
+                st.info("Try using the Quick Select buttons above for specific targets.")
 
 # ============================================================================
 # Main Content - Image Upload
@@ -455,10 +353,7 @@ if uploaded_file is not None:
         lensing_map = lensing_map / (lensing_map.max() + 1e-10)
         lensed_image = apply_lensing(entanglement_map, lensing_map, lensing_strength)
         
-        # ====================================================================
-        # Display Sections
-        # ====================================================================
-        
+        # Display sections
         st.markdown("---")
         st.markdown("## 🔬 Before vs After")
         
@@ -474,7 +369,6 @@ if uploaded_file is not None:
             st.markdown("**🌌 After PDP + Lensing**")
             st.image(lensed_image, use_column_width=True, clamp=True)
         
-        # Overlay Views
         st.markdown("---")
         st.markdown("## 🎨 Overlay Views")
         
@@ -489,10 +383,8 @@ if uploaded_file is not None:
             st.markdown("**Original + Lensing (blue = mass)**")
             st.image(lensing_overlay, use_column_width=True, clamp=True)
         
-        # Interference Pattern
         st.markdown("---")
         st.markdown("## 🌊 Two-Field FDM Interference Pattern")
-        st.markdown("From ψ_total = ψ_light + ψ_dark e^(iΔφ)")
         
         fig_int, ax = plt.subplots(figsize=(10, 6))
         im = ax.imshow(interference_pattern, cmap='viridis', origin='lower')
@@ -503,12 +395,10 @@ if uploaded_file is not None:
         st.pyplot(fig_int)
         plt.close(fig_int)
         
-        # Physics Metrics
         st.markdown("---")
         st.markdown("## 📊 Physics Metrics")
         
         mean_conversion = float(np.mean(conversion_map))
-        max_conversion = float(np.max(conversion_map))
         correlation = np.corrcoef(conversion_map.flatten(), lensing_map.flatten())[0, 1]
         if np.isnan(correlation):
             correlation = 0.0
@@ -534,15 +424,10 @@ if uploaded_file is not None:
             st.metric("Correlation", f"{correlation:.3f}")
             st.caption("Conversion vs Dark Matter")
         
-        # Solitonic Core Profile
         with st.expander("🌀 FDM Solitonic Core Profile"):
-            st.markdown("**Solitonic core solution to the cusp-core problem:**")
             st.latex(r"\rho(r) = \frac{\rho_c}{[1 + (r/r_c)^2]^8}")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                r_core_kpc = st.slider("Core radius (kpc)", 0.1, 5.0, 1.0, 0.1)
-                rho_core = st.slider("Peak density (M☉/kpc³)", 1e6, 1e8, 1.9e7, format="%.1e")
+            r_core_kpc = st.slider("Core radius (kpc)", 0.1, 5.0, 1.0, 0.1)
+            rho_core = st.slider("Peak density (M☉/kpc³)", 1e6, 1e8, 1.9e7, format="%.1e")
             
             r = np.linspace(0, 10, 500)
             r_norm = r / r_core_kpc
@@ -559,29 +444,17 @@ if uploaded_file is not None:
             st.pyplot(fig_sol)
             plt.close(fig_sol)
         
-        # Parameter Information
         with st.expander("🔬 FDM Two-Field Physics Parameters"):
             col1, col2 = st.columns(2)
             with col1:
                 st.write(f"**Cluster:** {cluster}")
                 st.write(f"**Redshift:** {params['redshift']:.3f}")
                 st.write(f"**Distance:** {params['distance_mpc']:.0f} Mpc")
-                st.write(f"**Pixel Scale:** {pixel_scale:.3f} arcsec/pixel")
             with col2:
                 st.write(f"**Mixing ε:** {mixing_epsilon:.2e}")
                 st.write(f"**Dark Photon Mass:** {dark_photon_mass:.2e} eV")
-                st.write(f"**Photon Energy:** {photon_energy:.1f} eV")
                 st.write(f"**Relative Velocity:** {params['velocity']/1000:.0f} km/s")
-            
-            st.markdown("---")
-            st.markdown("**Implemented FDM Equations:**")
-            st.latex(r"\text{Klein-Gordon:} \quad \Box\phi + m^2\phi = 0")
-            st.latex(r"\text{Schrödinger-Poisson:} \quad i\partial_t\psi = -\frac{\nabla^2\psi}{2m} + \Phi\psi")
-            st.latex(r"\text{Two-field interference:} \quad \rho = |\psi_l|^2 + |\psi_d|^2 + 2\text{Re}(\psi_l^*\psi_d e^{i\Delta\phi})")
-            st.latex(r"\text{Fringe spacing:} \quad \lambda = \frac{h}{m\Delta v}")
-            st.latex(r"\text{Solitonic core:} \quad \rho(r) = \frac{\rho_c}{[1 + (r/r_c)^2]^8}")
         
-        # Download Buttons
         with st.expander("📥 Download Results"):
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -591,44 +464,16 @@ if uploaded_file is not None:
             with col3:
                 st.download_button("🌌 Download PDP + Lensing", image_to_bytes(lensed_image), "pdp_lensing.png")
         
-        st.success("✅ Analysis complete! Adjust parameters to explore different FDM scenarios.")
+        st.success("✅ Analysis complete!")
         
     else:
         st.error("Failed to load image.")
 else:
     st.info("👈 Please upload an image to begin analysis")
-    
-    with st.expander("ℹ️ About v4.5 - FDM Two-Field Physics"):
-        st.markdown("""
-        ### 🌟 QCI AstroEntangle Refiner v4.5 - Light Theme Edition
-        
-        **New in v4.5: Full FDM Two-Field Implementation**
-        
-        This version implements the complete Fuzzy Dark Matter (FDM) framework from the Cosmic Entanglement Visualizer.
-        
-        **Implemented Equations:**
-        - **Klein-Gordon**: Relativistic wave equation for scalar field dark matter
-        - **Schrödinger-Poisson**: Non-relativistic limit for galactic-scale structure
-        - **Two-field interference**: ψ_total = ψ_light + ψ_dark e^(iΔφ)
-        - **Fringe spacing**: λ = h/(mΔv) - de Broglie wavelength of FDM
-        - **Solitonic core**: ρ(r) = ρ_c / [1 + (r/r_c)²]⁸ - solves cusp-core problem
-        
-        **Features:**
-        - 🤖 AI Data Download - Query MAST/NED databases
-        - 🌊 Two-field Interference Pattern Visualization
-        - 🌀 Solitonic Core Profile Calculator
-        - 🎨 Light Theme Interface - Easier on the eyes
-        - 📥 Download all results as PNG
-        
-        **Try these parameters:**
-        - m_dark = 10⁻²² eV (FDM candidate mass)
-        - ε = 10⁻⁸ (typical mixing parameter)
-        - Photon energy = 1000 eV (X-ray observations)
-        """)
 
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #6c757d; padding: 1rem;">
-QCI AstroEntangle Refiner v4.5 | Light Theme | FDM Two-Field Physics | Based on Cosmic Entanglement Visualizer Framework
+QCI AstroEntangle Refiner v4.5 | Light Theme | FDM Two-Field Physics
 </div>
 """, unsafe_allow_html=True)

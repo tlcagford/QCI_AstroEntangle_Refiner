@@ -627,16 +627,5 @@ elif mode == "🎓 Tutorial":
     
     tabs = st.tabs(["📖 Theory", "🔬 Physics", "📊 Examples", "🎯 Interpretation"])
     
-    with tabs[0]:
-        st.markdown("""
-        ### The Photon-Dark-Photon Entanglement Hypothesis
-        
-        Dark matter may consist of ultralight **dark photons** that mix with visible photons via kinetic mixing.
-        
-        #### Key Idea
-        In merging galaxy clusters (like the Bullet Cluster), the relative motion between visible and dark matter creates **quantum interference patterns** detectable in astronomical images.
-        
-        #### Core Equations
-        
-        <div class="formula">
-        Two-field coupled system:
+    st.markdown("---")
+st.markdown("© 2026 Tony E. Ford | [GitHub](https://github.com/tlcagford/QCI_AstroEntangle_Refiner)")

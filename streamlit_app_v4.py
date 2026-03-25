@@ -2,14 +2,8 @@
 QCI AstroEntangle Refiner – Streamlit Web App v4
 Tony E Ford • tlcagford@gmail.com
 
-Drop-in replacement for streamlit_app_v4.py
-Fixes:
-  • use_column_width → width="100%" (deprecation removed)
-  • Images now bright with percentile stretch
-  • Color variation via selectable cmaps (plasma, inferno, viridis, magma, turbo)
-  • Entanglement overlay actually rendered and displayed
-  • Before/After side-by-side comparison
-  • PNG + FITS export
+Universal image input: FITS · JPG · PNG · TIFF · BMP · WEBP · CSV · DICOM/X-Ray
+Full pipeline: Percentile Stretch → PSF Correction → Neural SR → Entanglement Overlay
 """
 
 import io
@@ -25,7 +19,25 @@ from astropy.io import fits
 from astropy.convolution import Gaussian2DKernel
 from scipy.signal import convolve2d
 
-# ── Optional torch (graceful fallback if unavailable) ─────────────────────────
+# ── Optional imports (graceful fallback) ──────────────────────────────────────
+try:
+    from PIL import Image as PILImage
+    PIL_OK = True
+except ImportError:
+    PIL_OK = False
+
+try:
+    import pandas as pd
+    PANDAS_OK = True
+except ImportError:
+    PANDAS_OK = False
+
+try:
+    import cv2
+    CV2_OK = True
+except ImportError:
+    CV2_OK = False
+
 try:
     import torch
     import torch.nn as nn
@@ -33,6 +45,12 @@ try:
     TORCH_OK = True
 except ImportError:
     TORCH_OK = False
+
+try:
+    import pydicom
+    DICOM_OK = True
+except ImportError:
+    DICOM_OK = False
 
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -43,86 +61,146 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Dark-ish custom CSS
-st.markdown(
-    """
-    <style>
-    [data-testid="stAppViewContainer"] { background: #0d0d1e; }
-    [data-testid="stSidebar"] { background: #13132b; }
-    h1, h2, h3, h4 { color: #c8d8ff; }
-    .stTabs [data-baseweb="tab"] { color: #a0b0e0; }
-    .stTabs [aria-selected="true"] { color: #ffffff; border-bottom: 2px solid #7090ff; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { background: #0b0b1a; }
+[data-testid="stSidebar"]          { background: #10102a; }
+h1,h2,h3,h4                        { color: #c8d8ff; }
+.stTabs [data-baseweb="tab"]        { color: #9aacdd; }
+.stTabs [aria-selected="true"]      { color: #fff; border-bottom: 2px solid #6688ff; }
+</style>
+""", unsafe_allow_html=True)
 
 
-# ── Neural SR (optional) ──────────────────────────────────────────────────────
+# ── Neural SR ─────────────────────────────────────────────────────────────────
 if TORCH_OK:
     class EDSR_Small(nn.Module):
-        def __init__(self, scale: int = 2):
+        def __init__(self, scale=2):
             super().__init__()
-            self.scale = scale
-            self.conv1 = nn.Conv2d(1, 32, 3, padding=1)
-            self.res_blocks = nn.Sequential(*[self._rb() for _ in range(8)])
-            self.conv_up = nn.Conv2d(32, 32 * scale ** 2, 3, padding=1)
-            self.conv_out = nn.Conv2d(32, 1, 3, padding=1)
-
+            self.scale   = scale
+            self.conv1   = nn.Conv2d(1, 32, 3, padding=1)
+            self.res     = nn.Sequential(*[self._rb() for _ in range(8)])
+            self.conv_up = nn.Conv2d(32, 32 * scale**2, 3, padding=1)
+            self.conv_out= nn.Conv2d(32, 1, 3, padding=1)
         def _rb(self):
             return nn.Sequential(
-                nn.Conv2d(32, 32, 3, padding=1), nn.ReLU(inplace=True),
-                nn.Conv2d(32, 32, 3, padding=1),
-            )
-
+                nn.Conv2d(32,32,3,padding=1), nn.ReLU(True), nn.Conv2d(32,32,3,padding=1))
         def forward(self, x):
-            x = F.relu(self.conv1(x))
-            r = x
-            x = self.res_blocks(x)
-            x = x + r
-            x = F.pixel_shuffle(self.conv_up(x), self.scale)
-            return self.conv_out(x)
+            x = F.relu(self.conv1(x)); r = x
+            x = self.res(x) + r
+            return self.conv_out(F.pixel_shuffle(self.conv_up(x), self.scale))
 
-    @st.cache_resource
-    def load_model():
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        m = EDSR_Small(scale=2).to(device)
-        m.eval()
-        return m, device
-else:
-    load_model = None
+    @st.cache_resource(show_spinner=False)
+    def load_sr_model():
+        dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        m = EDSR_Small(2).to(dev); m.eval()
+        return m, dev
 
 
-# ── Processing helpers ────────────────────────────────────────────────────────
+# ── Supported file types ──────────────────────────────────────────────────────
+SUPPORTED_TYPES = [
+    "fits","fit","fz",
+    "jpg","jpeg","png","tif","tiff","bmp","webp",
+    "csv",
+    "dcm",
+]
+FILE_LABELS = {
+    "fits":"🌌 FITS","fit":"🌌 FITS","fz":"🌌 FITS",
+    "jpg":"🖼️ Image","jpeg":"🖼️ Image","png":"🖼️ Image",
+    "tif":"🖼️ Image","tiff":"🖼️ Image","bmp":"🖼️ Image","webp":"🖼️ Image",
+    "csv":"📊 CSV","dcm":"🩻 DICOM",
+}
 
-def normalize(data: np.ndarray, lo: float = 0.5, hi: float = 99.5) -> np.ndarray:
-    """Percentile-stretch to [0, 1]."""
-    vmin, vmax = np.percentile(data, lo), np.percentile(data, hi)
-    return np.clip((data - vmin) / (vmax - vmin + 1e-9), 0, 1).astype(np.float32)
+
+# ── File loaders ──────────────────────────────────────────────────────────────
+
+def load_fits_bytes(data: bytes) -> np.ndarray:
+    with fits.open(io.BytesIO(data)) as h:
+        arr = h[0].data
+        if arr is None:
+            arr = h[1].data
+        arr = arr.astype(np.float32)
+        if arr.ndim == 3:
+            arr = np.mean(arr, axis=0)
+        elif arr.ndim > 3:
+            arr = arr[0, 0]
+    return arr
+
+
+def load_image_bytes(data: bytes) -> np.ndarray:
+    if PIL_OK:
+        img = PILImage.open(io.BytesIO(data)).convert("L")
+        return np.array(img, dtype=np.float32)
+    if CV2_OK:
+        buf = np.frombuffer(data, np.uint8)
+        return cv2.imdecode(buf, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+    raise RuntimeError("Install Pillow or opencv-python-headless to read images.")
+
+
+def load_csv_bytes(data: bytes) -> np.ndarray:
+    if not PANDAS_OK:
+        raise RuntimeError("Install pandas to read CSV files.")
+    df = pd.read_csv(io.BytesIO(data), header=None)
+    return df.values.astype(np.float32)
+
+
+def load_dicom_bytes(data: bytes) -> np.ndarray:
+    if DICOM_OK:
+        ds  = pydicom.dcmread(io.BytesIO(data))
+        arr = ds.pixel_array.astype(np.float32)
+        if arr.ndim == 3:
+            arr = np.mean(arr, axis=2)
+        return arr
+    if PIL_OK:
+        img = PILImage.open(io.BytesIO(data)).convert("L")
+        return np.array(img, dtype=np.float32)
+    raise RuntimeError("Add pydicom to requirements.txt for DICOM support.")
+
+
+@st.cache_data(show_spinner="Reading file…")
+def load_any(file_bytes: bytes, ext: str) -> np.ndarray:
+    ext = ext.lower().lstrip(".")
+    if ext in ("fits","fit","fz"):
+        return load_fits_bytes(file_bytes)
+    if ext in ("jpg","jpeg","png","tif","tiff","bmp","webp"):
+        return load_image_bytes(file_bytes)
+    if ext == "csv":
+        return load_csv_bytes(file_bytes)
+    if ext == "dcm":
+        return load_dicom_bytes(file_bytes)
+    raise ValueError(f"Unsupported file type: .{ext}")
+
+
+# ── Processing ────────────────────────────────────────────────────────────────
+
+def normalize(arr: np.ndarray, lo=0.5, hi=99.5) -> np.ndarray:
+    vmin, vmax = np.percentile(arr, lo), np.percentile(arr, hi)
+    return np.clip((arr - vmin) / (vmax - vmin + 1e-9), 0, 1).astype(np.float32)
 
 
 def psf_correct(data: np.ndarray) -> np.ndarray:
     kernel = Gaussian2DKernel(x_stddev=2)
-    psf = kernel.array / kernel.array.sum()
+    psf    = kernel.array / kernel.array.sum()
     blurred = convolve2d(data, psf, mode="same", boundary="symm")
     return np.clip(data + 0.5 * (data - blurred), 0, 1).astype(np.float32)
 
 
 def neural_sr(data: np.ndarray) -> np.ndarray:
-    if not TORCH_OK:
-        # Fallback: bicubic upscale then downscale for sharpening effect
-        import cv2
-        h, w = data.shape
-        up = cv2.resize(data, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
-        return cv2.resize(up, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32)
-    model, device = load_model()
-    t = torch.tensor(data[None, None], dtype=torch.float32).to(device)
-    with torch.no_grad():
-        out = model(t).squeeze().cpu().numpy()
-    return np.clip(out, 0, 1).astype(np.float32)
+    if TORCH_OK:
+        model, dev = load_sr_model()
+        t = torch.tensor(data[None, None], dtype=torch.float32).to(dev)
+        with torch.no_grad():
+            out = model(t).squeeze().cpu().numpy()
+        return np.clip(out, 0, 1).astype(np.float32)
+    if CV2_OK:
+        u8 = (data * 255).astype(np.uint8)
+        bl = cv2.GaussianBlur(u8, (0, 0), 3)
+        sh = cv2.addWeighted(u8, 1.5, bl, -0.5, 0)
+        return sh.astype(np.float32) / 255.0
+    return data.copy()
 
 
-def apply_boost(img: np.ndarray, brightness: float, saturation: float) -> np.ndarray:
+def boost(img: np.ndarray, brightness: float, saturation: float) -> np.ndarray:
     img = np.clip(img * brightness, 0, 1)
     mid = img.mean()
     return np.clip(mid + (img - mid) * saturation, 0, 1).astype(np.float32)
@@ -132,10 +210,10 @@ def entangle(sr: np.ndarray, omega: float, fringe_scale: float) -> np.ndarray:
     H, W = sr.shape
     y, x = np.mgrid[0:H, 0:W]
     fringe = (
-        0.40 * np.sin(2 * np.pi * x / fringe_scale) * np.cos(2 * np.pi * y / fringe_scale)
-        + 0.30 * np.sin(2 * np.pi * (x + y) / (fringe_scale * 1.4))
-        + 0.20 * np.cos(2 * np.pi * x / (fringe_scale * 0.7))
-        + 0.10 * np.sin(4 * np.pi * y / fringe_scale)
+        0.40 * np.sin(2*np.pi*x / fringe_scale) * np.cos(2*np.pi*y / fringe_scale)
+      + 0.30 * np.sin(2*np.pi*(x+y) / (fringe_scale*1.4))
+      + 0.20 * np.cos(2*np.pi*x / (fringe_scale*0.7))
+      + 0.10 * np.sin(4*np.pi*y / fringe_scale)
     )
     fringe = (fringe - fringe.min()) / (fringe.max() - fringe.min() + 1e-9)
     weight = omega * (1.0 - sr * 0.5)
@@ -144,196 +222,248 @@ def entangle(sr: np.ndarray, omega: float, fringe_scale: float) -> np.ndarray:
 
 # ── Figure helpers ────────────────────────────────────────────────────────────
 
-def make_fig(img: np.ndarray, cmap: str, title: str, figsize=(9, 6)) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=figsize, facecolor="#0d0d1e")
-    ax.set_facecolor("#0d0d1e")
+def make_fig(img: np.ndarray, cmap: str, title: str, figsize=(9,6)) -> plt.Figure:
+    fig, ax = plt.subplots(figsize=figsize, facecolor="#0b0b1a")
+    ax.set_facecolor("#0b0b1a")
     im = ax.imshow(img, cmap=cmap, origin="lower", interpolation="nearest", aspect="auto")
-    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
-    cbar.ax.yaxis.set_tick_params(color="white")
-    plt.setp(cbar.ax.yaxis.get_ticklabels(), color="white")
+    cb = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
+    cb.ax.yaxis.set_tick_params(color="white")
+    plt.setp(cb.ax.yaxis.get_ticklabels(), color="white")
     ax.set_title(title, color="white", fontsize=12, pad=8)
     ax.tick_params(colors="white")
-    for spine in ax.spines.values():
-        spine.set_edgecolor("#334")
+    for sp in ax.spines.values():
+        sp.set_edgecolor("#334")
     fig.tight_layout(pad=1.5)
     return fig
 
 
-def fig_to_png_bytes(fig: plt.Figure) -> bytes:
+def fig_bytes(fig: plt.Figure) -> bytes:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", dpi=150, facecolor=fig.get_facecolor())
-    buf.seek(0)
-    return buf.read()
+    fig.savefig(buf, format="png", bbox_inches="tight", dpi=150,
+                facecolor=fig.get_facecolor())
+    buf.seek(0); return buf.read()
 
 
-def arr_to_fits_bytes(arr: np.ndarray) -> bytes:
+def fits_bytes(arr: np.ndarray) -> bytes:
     buf = io.BytesIO()
-    hdu = fits.PrimaryHDU(arr.astype(np.float32))
-    hdu.writeto(buf)
-    buf.seek(0)
-    return buf.read()
+    fits.PrimaryHDU(arr.astype(np.float32)).writeto(buf)
+    buf.seek(0); return buf.read()
 
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+def csv_bytes(arr: np.ndarray) -> bytes:
+    buf = io.BytesIO()
+    np.savetxt(buf, arr, delimiter=",", fmt="%.6f")
+    buf.seek(0); return buf.read()
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("## 🔭 QCI AstroEntangle Refiner")
     st.caption("Tony E Ford • tlcagford@gmail.com")
     st.divider()
 
-    uploaded = st.file_uploader("Upload FITS file", type=["fits", "fit", "fz"])
-    st.divider()
+    st.markdown("### 📂 Drop Any Image File")
+    st.caption(
+        "**FITS** · **JPG** · **PNG** · **TIFF** · **BMP** · **WEBP**\n\n"
+        "**CSV** (2-D numeric array) · **DICOM / DCM** (X-Ray)"
+    )
+    uploaded = st.file_uploader(
+        "Upload file",
+        type=SUPPORTED_TYPES,
+        label_visibility="collapsed",
+    )
 
+    st.divider()
     st.markdown("### ⚙️ Pipeline Controls")
-    omega = st.slider("Ω_PD Entanglement", 0.05, 0.50, 0.20, 0.01)
-    fringe_scale = st.slider("Fringe Scale (px)", 20, 80, 45, 1)
-    brightness = st.slider("Brightness Boost", 0.5, 3.0, 1.3, 0.05)
-    saturation = st.slider("Color Saturation", 0.5, 3.0, 1.5, 0.05)
-    cmap_choice = st.selectbox(
-        "Colormap",
-        ["plasma", "inferno", "viridis", "magma", "turbo", "hot", "rainbow", "jet"],
-        index=0,
+    omega        = st.slider("Ω_PD  Entanglement",   0.05, 0.50, 0.20, 0.01)
+    fringe_scale = st.slider("Fringe Scale (px)",      20,   80,  45,   1)
+    brightness   = st.slider("Brightness Boost",      0.5,  3.0, 1.3, 0.05)
+    saturation   = st.slider("Color Saturation",      0.5,  3.0, 1.5, 0.05)
+    cmap_choice  = st.selectbox(
+        "Overlay Colormap",
+        ["plasma","inferno","viridis","magma","turbo","hot","rainbow","jet"],
     )
     run_btn = st.button("🚀 Run Full Pipeline", type="primary", use_container_width=True)
+
     st.divider()
-    st.caption(f"PyTorch: {'✅ GPU' if TORCH_OK and __import__('torch').cuda.is_available() else '✅ CPU' if TORCH_OK else '⚠️ fallback (no torch)'}")
+    st.caption(
+        f"Torch: {'✅ GPU' if TORCH_OK and torch.cuda.is_available() else '✅ CPU' if TORCH_OK else '⚠️ fallback'} · "
+        f"PIL: {'✅' if PIL_OK else '⚠️'} · "
+        f"DICOM: {'✅' if DICOM_OK else '⚠️ add pydicom'}"
+    )
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════════
 st.title("🔭 QCI AstroEntangle Refiner")
-st.caption("PSF Correction → Neural Super-Resolution → Photon–Dark-Photon Entanglement Overlay")
-
-if uploaded is None:
-    st.info("👈 Upload a FITS file in the sidebar to get started.", icon="📂")
-    st.stop()
-
-# Load FITS
-@st.cache_data(show_spinner="Reading FITS…")
-def load_fits_data(file_bytes: bytes) -> np.ndarray:
-    with fits.open(io.BytesIO(file_bytes)) as hdul:
-        data = hdul[0].data
-        if data is None:
-            data = hdul[1].data
-        data = data.astype(np.float32)
-        if data.ndim == 3:
-            data = np.mean(data, axis=0)
-        elif data.ndim > 3:
-            data = data[0, 0]
-    return data
-
-raw = load_fits_data(uploaded.read())
-st.success(f"Loaded **{uploaded.name}** — shape: {raw.shape[1]} × {raw.shape[0]} px")
-
-# Always show input preview
-norm = normalize(raw)
-with st.expander("📷 Input Preview (percentile stretch)", expanded=True):
-    fig_in = make_fig(norm, "inferno", "Input – percentile stretch (inferno)")
-    st.image(fig_to_png_bytes(fig_in), width=None)
-    plt.close(fig_in)
-
-if not run_btn:
-    st.info("Adjust sliders in the sidebar then click **Run Full Pipeline**.")
-    st.stop()
-
-# ── Run pipeline ──────────────────────────────────────────────────────────────
-progress = st.progress(0, text="Starting…")
-
-progress.progress(15, text="PSF correction…")
-psf = psf_correct(norm)
-
-progress.progress(40, text="Neural super-resolution…")
-sr = neural_sr(psf)
-sr = apply_boost(sr, brightness, saturation)
-
-progress.progress(70, text="Entanglement overlay…")
-ent = entangle(sr, omega, fringe_scale)
-ent = apply_boost(ent, brightness, saturation)
-
-progress.progress(90, text="Rendering…")
-
-# ── Display tabs ──────────────────────────────────────────────────────────────
-tab_input, tab_sr, tab_ent, tab_compare = st.tabs(
-    ["📥 Input", "🧠 Neural Enhanced", "🌀 Entangled Overlay", "↔️ Before / After"]
+st.caption(
+    "**Universal input** → Percentile Stretch → PSF Correction → "
+    "Neural Super-Resolution → Photon–Dark-Photon Entanglement Overlay"
 )
 
-with tab_input:
-    fig = make_fig(norm, "inferno", "Input – percentile stretch")
-    st.image(fig_to_png_bytes(fig), width=None)
-    plt.close(fig)
-
-with tab_sr:
-    fig = make_fig(sr, "viridis", "Neural SR + Brightness/Saturation (viridis)")
-    st.image(fig_to_png_bytes(fig), width=None)
-    plt.close(fig)
-
-with tab_ent:
-    fig = make_fig(
-        ent, cmap_choice,
-        f"Entanglement Overlay  Ω={omega:.2f}  fringe={fringe_scale}px  ({cmap_choice})"
+# ── No file yet: show format cards ───────────────────────────────────────────
+if uploaded is None:
+    st.info(
+        "👈 **Drop any image file in the sidebar** to begin.\n\n"
+        "Supported: **FITS · JPG · PNG · TIFF · BMP · WEBP · CSV · DICOM/X-Ray**",
+        icon="📂",
     )
-    st.image(fig_to_png_bytes(fig), width=None)
+    cards = [
+        ("🌌","FITS / FIT / FZ","Astronomy raw data"),
+        ("🖼️","JPG · PNG · TIFF · BMP · WEBP","Standard image formats"),
+        ("📊","CSV","2-D numeric array → heatmap"),
+        ("🩻","DCM / DICOM","Medical / X-Ray imaging"),
+    ]
+    cols = st.columns(4)
+    for col, (icon, fmt, desc) in zip(cols, cards):
+        with col:
+            st.markdown(
+                f'<div style="background:#16163a;border-radius:12px;padding:16px;text-align:center">'
+                f'<div style="font-size:2.2rem">{icon}</div>'
+                f'<div style="color:#c8d8ff;font-weight:700;margin:6px 0">{fmt}</div>'
+                f'<div style="color:#888;font-size:0.82rem">{desc}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+    st.stop()
+
+# ── Load file ─────────────────────────────────────────────────────────────────
+ext        = uploaded.name.rsplit(".", 1)[-1].lower()
+file_label = FILE_LABELS.get(ext, f"📄 .{ext}")
+file_bytes = uploaded.read()
+
+try:
+    raw = load_any(file_bytes, ext)
+except Exception as e:
+    st.error(f"❌ Could not load file: {e}")
+    st.stop()
+
+st.success(
+    f"{file_label} — **{uploaded.name}** loaded  |  "
+    f"Shape: {raw.shape[1]} × {raw.shape[0]} px  |  "
+    f"Range: {raw.min():.2f} – {raw.max():.2f}"
+)
+
+norm = normalize(raw)
+
+with st.expander("📷 Input Preview (auto-stretched)", expanded=True):
+    fig = make_fig(norm, "inferno", f"Input – {uploaded.name}  (inferno, percentile stretch)")
+    st.image(fig_bytes(fig), width=None)
     plt.close(fig)
 
-with tab_compare:
-    col1, col2 = st.columns(2)
-    with col1:
-        fig = make_fig(norm, "inferno", "Before (input)", figsize=(6, 5))
-        st.image(fig_to_png_bytes(fig), width=None)
+if not run_btn:
+    st.info("Adjust sliders then click **🚀 Run Full Pipeline** in the sidebar.")
+    st.stop()
+
+# ── Pipeline ──────────────────────────────────────────────────────────────────
+bar = st.progress(0, text="Initialising…")
+
+bar.progress(10, text="PSF correction…")
+psf = psf_correct(norm)
+
+bar.progress(35, text="Neural super-resolution…")
+sr = neural_sr(psf)
+sr = boost(sr, brightness, saturation)
+
+bar.progress(65, text="Building entanglement overlay…")
+ent = entangle(sr, omega, fringe_scale)
+ent = boost(ent, brightness, saturation)
+
+bar.progress(85, text="Rendering tabs…")
+
+# ── Tabs ──────────────────────────────────────────────────────────────────────
+t_in, t_sr, t_ent, t_ba, t_raw = st.tabs([
+    "📥 Input",
+    "🧠 Neural Enhanced",
+    "🌀 Entangled Overlay",
+    "↔️ Before / After",
+    "🔢 Raw Stats",
+])
+
+with t_in:
+    fig = make_fig(norm, "inferno", "Input – percentile stretch (inferno)")
+    st.image(fig_bytes(fig), width=None)
+    plt.close(fig)
+
+with t_sr:
+    fig = make_fig(sr, "viridis",
+        f"Neural SR  brightness={brightness:.1f}  saturation={saturation:.1f}  (viridis)")
+    st.image(fig_bytes(fig), width=None)
+    plt.close(fig)
+
+with t_ent:
+    fig = make_fig(ent, cmap_choice,
+        f"Entanglement Overlay — Ω={omega:.2f}  fringe={fringe_scale}px  ({cmap_choice})")
+    st.image(fig_bytes(fig), width=None)
+    plt.close(fig)
+
+with t_ba:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Before (input)**")
+        fig = make_fig(norm, "inferno", "Before", figsize=(6,5))
+        st.image(fig_bytes(fig), width=None)
         plt.close(fig)
-    with col2:
-        fig = make_fig(ent, cmap_choice, f"After (entangled – {cmap_choice})", figsize=(6, 5))
-        st.image(fig_to_png_bytes(fig), width=None)
+    with c2:
+        st.markdown(f"**After (entangled – {cmap_choice})**")
+        fig = make_fig(ent, cmap_choice, "After", figsize=(6,5))
+        st.image(fig_bytes(fig), width=None)
         plt.close(fig)
 
-progress.progress(100, text="Done ✓")
+with t_raw:
+    st.markdown("#### Array statistics")
+    ca, cb, cc, cd = st.columns(4)
+    ca.metric("Min",   f"{raw.min():.4f}")
+    cb.metric("Max",   f"{raw.max():.4f}")
+    cc.metric("Mean",  f"{raw.mean():.4f}")
+    cd.metric("Shape", f"{raw.shape[1]}×{raw.shape[0]}")
+    if PANDAS_OK:
+        st.dataframe(pd.DataFrame(raw).describe().round(4), use_container_width=True)
+
+bar.progress(100, text="Done ✓")
 st.success("Pipeline complete! Download results below. 👇")
 
 # ── Downloads ─────────────────────────────────────────────────────────────────
 st.divider()
-st.markdown("### 💾 Export Results")
-
-ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+st.markdown("### 💾 Download Results")
+ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
 stem = os.path.splitext(uploaded.name)[0]
 
-dl1, dl2, dl3, dl4 = st.columns(4)
+d1,d2,d3,d4,d5,d6 = st.columns(6)
 
-with dl1:
-    fig = make_fig(sr, "viridis", "Neural Refined", figsize=(10, 7))
-    st.download_button(
-        "⬇️ Refined PNG",
-        data=fig_to_png_bytes(fig),
-        file_name=f"QCI_refined_{stem}_{ts}.png",
-        mime="image/png",
-        use_container_width=True,
-    )
+with d1:
+    fig = make_fig(norm, "inferno", "Input", figsize=(10,7))
+    st.download_button("⬇️ Input PNG",
+        fig_bytes(fig), f"QCI_input_{stem}_{ts}.png","image/png", use_container_width=True)
     plt.close(fig)
-
-with dl2:
-    st.download_button(
-        "⬇️ Refined FITS",
-        data=arr_to_fits_bytes(sr),
-        file_name=f"QCI_refined_{stem}_{ts}.fits",
-        mime="application/octet-stream",
-        use_container_width=True,
-    )
-
-with dl3:
-    fig = make_fig(ent, cmap_choice, f"Entangled – {cmap_choice}", figsize=(10, 7))
-    st.download_button(
-        "⬇️ Entangled PNG",
-        data=fig_to_png_bytes(fig),
-        file_name=f"QCI_entangled_{stem}_{ts}.png",
-        mime="image/png",
-        use_container_width=True,
-    )
+with d2:
+    st.download_button("⬇️ Input FITS",
+        fits_bytes(norm), f"QCI_input_{stem}_{ts}.fits","application/octet-stream",
+        use_container_width=True)
+with d3:
+    fig = make_fig(sr, "viridis", "Refined", figsize=(10,7))
+    st.download_button("⬇️ Refined PNG",
+        fig_bytes(fig), f"QCI_refined_{stem}_{ts}.png","image/png", use_container_width=True)
     plt.close(fig)
+with d4:
+    st.download_button("⬇️ Refined FITS",
+        fits_bytes(sr), f"QCI_refined_{stem}_{ts}.fits","application/octet-stream",
+        use_container_width=True)
+with d5:
+    fig = make_fig(ent, cmap_choice, "Entangled", figsize=(10,7))
+    st.download_button("⬇️ Entangled PNG",
+        fig_bytes(fig), f"QCI_entangled_{stem}_{ts}.png","image/png", use_container_width=True)
+    plt.close(fig)
+with d6:
+    st.download_button("⬇️ Entangled FITS",
+        fits_bytes(ent), f"QCI_entangled_{stem}_{ts}.fits","application/octet-stream",
+        use_container_width=True)
 
-with dl4:
-    st.download_button(
-        "⬇️ Entangled FITS",
-        data=arr_to_fits_bytes(ent),
-        file_name=f"QCI_entangled_{stem}_{ts}.fits",
-        mime="application/octet-stream",
-        use_container_width=True,
-    )
+st.download_button(
+    "⬇️ Entangled CSV (raw numeric array)",
+    csv_bytes(ent),
+    f"QCI_entangled_{stem}_{ts}.csv","text/csv",
+)

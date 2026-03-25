@@ -118,3 +118,13 @@ EOF
 # Verify it was created
 echo "Checking file..."
 cat pdp_physics_working.py | head -20
+# Compatibility aliases for v4
+PhotonDarkPhotonModel = PhotonDarkPhotonEngine
+H = PhysicalConstants.h
+HBAR = PhysicalConstants.hbar
+C = PhysicalConstants.c
+ALPHA = 1/137.035999084  # Fine structure constant
+M_E = 9.1093837015e-31   # Electron mass in kg
+EV = 1.602176634e-19     # Electron volt in Joules
+K_B = 1.380649e-23       # Boltzmann constant
+EPS0 = 8.8541878128e-12  # Vacuum permittivity

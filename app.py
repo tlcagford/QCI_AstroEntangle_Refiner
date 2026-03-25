@@ -1,19 +1,21 @@
-# QCI AstroEntangle Refiner – v22 FINAL WORKING
-# Fixed: Soliton profile, division by zero, all displays working
+# QCI AstroEntangle Refiner – v23 WITH IMAGE ANNOTATION
+# Added: Physics information overlay on images
 
 import io
 import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from matplotlib import patheffects
 from scipy.integrate import odeint
 from scipy.ndimage import gaussian_filter, sobel, zoom
 from scipy.fft import fft2, fftshift
 from astropy.io import fits
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import warnings
 import time
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional, Tuple
 import json
 
 warnings.filterwarnings('ignore')
@@ -21,7 +23,7 @@ warnings.filterwarnings('ignore')
 # ── PAGE CONFIG ─────────────────────────────────────────────
 st.set_page_config(
     layout="wide", 
-    page_title="QCI Refiner v22 - Final Working", 
+    page_title="QCI Refiner v23 - Annotated Outputs", 
     page_icon="🔭",
     initial_sidebar_state="expanded"
 )
@@ -47,6 +49,137 @@ class PhysicsOutput:
     entanglement_entropy: float
     processing_time: float
     metadata: Dict
+    annotated_image: np.ndarray = None
+
+
+# ── ANNOTATION FUNCTIONS ─────────────────────────────────────────────
+
+def add_physics_annotations(image_array, metadata, scale_kpc=100, image_pixels=500):
+    """
+    Add physics information overlay to image
+    """
+    # Convert to PIL for text overlay
+    if len(image_array.shape) == 3:
+        img = (image_array * 255).astype(np.uint8)
+        img_pil = Image.fromarray(img)
+    else:
+        img_pil = Image.fromarray((image_array * 255).astype(np.uint8)).convert('RGB')
+    
+    draw = ImageDraw.Draw(img_pil)
+    
+    # Try to use a nice font, fallback to default
+    try:
+        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11)
+    except:
+        font_large = ImageFont.load_default()
+        font_medium = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+    
+    # Scale bar parameters
+    scale_bar_length_px = 100  # pixels
+    scale_bar_kpc = (scale_bar_length_px / image_pixels) * scale_kpc
+    scale_bar_y = image_array.shape[0] - 40
+    scale_bar_x_start = 20
+    scale_bar_x_end = scale_bar_x_start + scale_bar_length_px
+    
+    # Draw scale bar
+    draw.rectangle([scale_bar_x_start, scale_bar_y, scale_bar_x_end, scale_bar_y + 5], fill='white')
+    draw.text((scale_bar_x_start + 10, scale_bar_y - 18), f"{scale_bar_kpc:.0f} kpc", 
+              fill='white', font=font_small, stroke_width=1, stroke_fill='black')
+    
+    # Draw N (North) indicator
+    draw.line([image_array.shape[1] - 30, 30, image_array.shape[1] - 30, 60], fill='white', width=2)
+    draw.text((image_array.shape[1] - 38, 15), "N", fill='white', font=font_medium)
+    
+    # Physics info box
+    info_lines = [
+        f"QCI Refiner v23",
+        f"Ω = {metadata['omega']:.2f} | Fringe = {metadata['fringe']}",
+        f"Mixing = {metadata['mixing_angle']:.3f}",
+        f"S_entropy = {metadata['entanglement_entropy']:.3f}",
+        f"λ_FDM = {scale_kpc / metadata['fringe'] * 8:.1f} kpc",
+        f"FDM Mass: {metadata['m_fdm_eV']:.1e} eV"
+    ]
+    
+    # Draw info box background
+    box_y_start = 10
+    box_y_end = box_y_start + len(info_lines) * 20 + 10
+    draw.rectangle([10, box_y_start, 250, box_y_end], fill=(0, 0, 0, 180), outline='white')
+    
+    # Draw text lines
+    for i, line in enumerate(info_lines):
+        draw.text((15, box_y_start + 5 + i * 20), line, fill='white', font=font_small)
+    
+    # Add formula annotations
+    formulas = [
+        "ρ(r) ∝ [sin(kr)/kr]²",
+        "λ = h/(m v)",
+        "S = -Tr(ρ log ρ)"
+    ]
+    
+    formula_y_start = image_array.shape[0] - 80
+    for i, formula in enumerate(formulas):
+        draw.text((image_array.shape[1] - 200, formula_y_start + i * 18), formula, 
+                  fill='cyan', font=font_small, stroke_width=1, stroke_fill='black')
+    
+    return np.array(img_pil) / 255.0
+
+
+def create_comparison_with_labels(original, entangled, metadata, scale_kpc=100):
+    """
+    Create side-by-side comparison with labels
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    
+    # Original image
+    ax1.imshow(original, cmap='gray')
+    ax1.set_title(f"Before: Abell 1689 Standard View\n(Public HST/JWST Data)", 
+                  color='white', fontsize=10)
+    ax1.axis('off')
+    
+    # Annotated entangled image
+    ax2.imshow(entangled, cmap='inferno')
+    
+    # Add scale bar to matplotlib figure
+    h, w = entangled.shape[:2]
+    scale_bar_px = 100
+    scale_bar_kpc = (scale_bar_px / w) * scale_kpc
+    scale_x_start = 20
+    scale_x_end = scale_x_start + scale_bar_px
+    scale_y = h - 30
+    
+    ax2.add_patch(Rectangle((scale_x_start, scale_y), scale_bar_px, 5, 
+                            facecolor='white', edgecolor='white'))
+    ax2.text(scale_x_start + 10, scale_y - 12, f"{scale_bar_kpc:.0f} kpc", 
+             color='white', fontsize=9, ha='center')
+    
+    # Add N indicator
+    ax2.annotate('N', xy=(w - 30, 30), xytext=(w - 30, 30), 
+                 color='white', fontsize=12, ha='center', va='center')
+    ax2.plot([w - 30, w - 30], [30, 60], 'w-', linewidth=2)
+    
+    # Add physics info box
+    info_text = f"Ω={metadata['omega']:.2f} | Fringe={metadata['fringe']}\n"
+    info_text += f"S_entropy={metadata['entanglement_entropy']:.3f}\n"
+    info_text += f"λ={scale_bar_kpc / metadata['fringe'] * 8:.1f} kpc"
+    
+    ax2.text(15, 25, info_text, color='white', fontsize=9,
+             bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+    
+    # Add formula annotation
+    ax2.text(w - 180, h - 25, r'$\rho(r) \propto [\sin(kr)/(kr)]^2$', 
+             color='cyan', fontsize=8, bbox=dict(boxstyle='round', facecolor='black', alpha=0.5))
+    
+    ax2.set_title(f"After: Abell 1689 with Full Photon-Dark-Photon\nEntangled FDM Overlays (Tony Ford Model)", 
+                  color='white', fontsize=10)
+    ax2.axis('off')
+    
+    fig.patch.set_facecolor('#0b0b1a')
+    fig.tight_layout()
+    
+    return fig
 
 
 # ── PHYSICS FUNCTIONS ─────────────────────────────────────────────
@@ -61,56 +194,41 @@ def compute_entanglement_entropy(rho):
 
 
 def schrodinger_poisson_soliton(size, fringe):
-    """
-    Create FDM soliton core with [sin(kr)/(kr)]² profile
-    """
+    """Create FDM soliton core with [sin(kr)/(kr)]² profile"""
     h, w = size
     y, x = np.ogrid[:h, :w]
     cx, cy = w//2, h//2
     
-    # Distance from center normalized
     r = np.sqrt((x - cx)**2 + (y - cy)**2) / max(h, w, 1)
-    
-    # Soliton scale depends on fringe (higher fringe = smaller soliton)
     r_s = 0.2 * (50.0 / max(fringe, 1))
     k = np.pi / max(r_s, 0.01)
     kr = k * r
     
-    # Soliton profile: ρ(r) = [sin(kr)/(kr)]²
     with np.errstate(divide='ignore', invalid='ignore'):
         soliton = np.where(kr > 1e-6, (np.sin(kr) / kr)**2, 1.0)
     
-    # Normalize to [0,1]
     soliton = soliton - soliton.min()
     soliton = soliton / (soliton.max() + 1e-9)
-    
-    # Apply smoothing for realistic appearance
     soliton = gaussian_filter(soliton, sigma=2)
     
     return soliton
 
 
 def create_dark_photon_field(size, fringe, scale_kpc=100):
-    """
-    Create visible dark photon interference pattern
-    """
+    """Create visible dark photon interference pattern"""
     h, w = size
     y, x = np.ogrid[:h, :w]
     cx, cy = w//2, h//2
     
-    # Normalized coordinates
     r = np.sqrt((x - cx)**2 + (y - cy)**2) / max(h, w, 1)
     theta = np.arctan2(y - cy, x - cx)
     
-    # Wave number from fringe
     k = fringe / 20.0
     
-    # Create interference pattern
     radial = np.sin(k * 2 * np.pi * r * 3)
     spiral = np.sin(k * 2 * np.pi * (r + theta / (2 * np.pi)))
     angular = np.sin(k * 3 * theta)
     
-    # Combine based on fringe
     if fringe < 50:
         pattern = radial * 0.6 + spiral * 0.4
     elif fringe < 80:
@@ -118,55 +236,39 @@ def create_dark_photon_field(size, fringe, scale_kpc=100):
     else:
         pattern = spiral * 0.5 + angular * 0.3 + radial * 0.2
     
-    # Normalize
     pattern = (pattern - pattern.min()) / (pattern.max() - pattern.min() + 1e-9)
     
     return pattern
 
 
 def create_dark_matter_density(image, soliton):
-    """
-    Create dark matter density map from image gradients
-    """
-    # Smooth image
+    """Create dark matter density map from image gradients"""
     smoothed = gaussian_filter(image, sigma=8)
-    
-    # Gradient magnitude (tracer of mass)
     grad_x = sobel(smoothed, axis=0)
     grad_y = sobel(smoothed, axis=1)
     gradient = np.sqrt(grad_x**2 + grad_y**2)
     
-    # Normalize gradient
     if gradient.max() > gradient.min():
         gradient = (gradient - gradient.min()) / (gradient.max() - gradient.min())
     else:
         gradient = np.zeros_like(gradient)
     
-    # Combine with soliton core
     dm = soliton * 0.6 + gradient * 0.4
-    
     return np.clip(dm, 0, 1)
 
 
 def apply_primordial_entanglement(image, omega, fringe, brightness=1.2, scale_kpc=100):
-    """
-    Apply full physics pipeline
-    """
+    """Apply full physics pipeline"""
     h, w = image.shape
     
-    # 1. Create soliton core
+    m_fdm = 1e-22 * (50.0 / max(fringe, 1))
+    
     soliton = schrodinger_poisson_soliton((h, w), fringe)
-    
-    # 2. Create dark photon field
     dark_photon = create_dark_photon_field((h, w), fringe, scale_kpc)
-    
-    # 3. Create dark matter density
     dm_density = create_dark_matter_density(image, soliton)
     
-    # 4. Mixing strength (from von Neumann approximation)
     mixing = omega * 0.5
     
-    # 5. Entangled image
     result = image * (1 - mixing * 0.3)
     result = result + dark_photon * mixing * 0.5
     result = result + dm_density * mixing * 0.3
@@ -174,7 +276,6 @@ def apply_primordial_entanglement(image, omega, fringe, brightness=1.2, scale_kp
     result = result * brightness
     result = np.clip(result, 0, 1)
     
-    # 6. RGB composite
     rgb = np.stack([
         result,
         result * 0.4 + dark_photon * 0.6,
@@ -182,17 +283,17 @@ def apply_primordial_entanglement(image, omega, fringe, brightness=1.2, scale_kp
     ], axis=-1)
     rgb = np.clip(rgb, 0, 1)
     
-    # 7. Entanglement entropy
     entropy = compute_entanglement_entropy(np.array([[1-mixing, mixing], [mixing, mixing]]))
     
-    # Metadata
     metadata = {
         "omega": float(omega),
         "fringe": int(fringe),
         "brightness": float(brightness),
         "scale_kpc": int(scale_kpc),
         "mixing_angle": float(mixing),
-        "entanglement_entropy": float(entropy)
+        "entanglement_entropy": float(entropy),
+        "m_fdm_eV": float(m_fdm),
+        "wavelength_kpc": float(scale_kpc / fringe * 8)
     }
     
     return PhysicsOutput(
@@ -206,6 +307,16 @@ def apply_primordial_entanglement(image, omega, fringe, brightness=1.2, scale_kp
         processing_time=0.0,
         metadata=metadata
     )
+
+
+# ── CLUSTER PRESETS ─────────────────────────────────────────────
+CLUSTER_PRESETS = {
+    "Bullet Cluster (1E0657-56)": {"fringe": 70, "omega": 0.75, "scale_kpc": 200},
+    "Abell 1689": {"fringe": 55, "omega": 0.65, "scale_kpc": 150},
+    "Abell 209": {"fringe": 60, "omega": 0.70, "scale_kpc": 100},
+    "Abell 2218": {"fringe": 50, "omega": 0.68, "scale_kpc": 120},
+    "COSMOS Field": {"fringe": 45, "omega": 0.60, "scale_kpc": 80}
+}
 
 
 # ── UI FUNCTIONS ─────────────────────────────────────────────
@@ -226,24 +337,14 @@ def display_image(img_array, title, cmap='inferno', show_colorbar=True, figsize=
         st.pyplot(fig)
         plt.close(fig)
     except Exception as e:
-        st.write(f"⚠️ Display error for {title}: {str(e)[:50]}")
-
-
-# ── CLUSTER PRESETS ─────────────────────────────────────────────
-CLUSTER_PRESETS = {
-    "Bullet Cluster (1E0657-56)": {"fringe": 70, "omega": 0.75, "scale_kpc": 200},
-    "Abell 1689": {"fringe": 55, "omega": 0.65, "scale_kpc": 150},
-    "Abell 209": {"fringe": 60, "omega": 0.70, "scale_kpc": 100},
-    "Abell 2218": {"fringe": 50, "omega": 0.68, "scale_kpc": 120},
-    "COSMOS Field": {"fringe": 45, "omega": 0.60, "scale_kpc": 80}
-}
+        st.write(f"⚠️ Display error: {str(e)[:50]}")
 
 
 # ── SIDEBAR ─────────────────────────────────────────────
 with st.sidebar:
-    st.title("🔭 QCI Refiner v22")
-    st.markdown("### Final Working Version")
-    st.markdown("*Primordial Entanglement + QCIS*")
+    st.title("🔭 QCI Refiner v23")
+    st.markdown("### Annotated Physics Outputs")
+    st.markdown("*With Image Overlays*")
     st.markdown("---")
     
     uploaded = st.file_uploader("📁 Upload FITS/Image", type=["fits", "png", "jpg", "jpeg"])
@@ -274,7 +375,14 @@ with st.sidebar:
                               index=[50,100,150,200,300].index(scale_default))
     
     st.markdown("---")
-    st.caption("Tony Ford Model | v22 - Final Working")
+    st.markdown("### 🏷️ Annotation Options")
+    
+    add_scale_bar = st.checkbox("Add Scale Bar", value=True)
+    add_physics_text = st.checkbox("Add Physics Info", value=True)
+    add_formulas = st.checkbox("Add Formulas", value=True)
+    
+    st.markdown("---")
+    st.caption("Tony Ford Model | v23 - Annotated Outputs")
 
 
 # ── MAIN APP ─────────────────────────────────────────────
@@ -314,38 +422,37 @@ if uploaded is not None:
     
     # Process
     with st.spinner("Running physics solvers..."):
-        # Enhance
         blurred = gaussian_filter(img, sigma=1)
         enhanced = img + (img - blurred) * 0.5
         enhanced = np.clip(enhanced, 0, 1)
         
-        # Apply physics
         physics = apply_primordial_entanglement(enhanced, omega, fringe, brightness, scale_kpc)
+        
+        # Create annotated version
+        annotated = add_physics_annotations(
+            physics.entangled_image, 
+            physics.metadata, 
+            scale_kpc, 
+            physics.entangled_image.shape[1]
+        )
+        
+        # Create comparison figure
+        comparison_fig = create_comparison_with_labels(
+            img, 
+            annotated if add_physics_text else physics.entangled_image,
+            physics.metadata, 
+            scale_kpc
+        )
     
     # Success
     st.success(f"✅ Complete | Mixing = {physics.mixing_angle:.3f} | Entropy = {physics.entanglement_entropy:.3f}")
     
-    # ── DISPLAY ─────────────────────────────────────────────
-    st.markdown("### 📊 Pipeline Results")
+    # ── ANNOTATED COMPARISON ─────────────────────────────────────────────
+    st.markdown("### 📊 Annotated Comparison")
+    st.pyplot(comparison_fig)
+    plt.close(comparison_fig)
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        display_image(img, "Original", 'gray', figsize=(3.5, 3.5))
-        st.caption(f"Range: [{img.min():.3f}, {img.max():.3f}]")
-    
-    with col2:
-        display_image(enhanced, "Enhanced", 'inferno', figsize=(3.5, 3.5))
-    
-    col3, col4 = st.columns(2)
-    
-    with col3:
-        display_image(physics.entangled_image, "PDP Entangled", 'inferno', figsize=(3.5, 3.5))
-    
-    with col4:
-        display_image(physics.rgb_composite, "RGB Composite", None, show_colorbar=False, figsize=(3.5, 3.5))
-    
-    # ── COMPONENTS ─────────────────────────────────────────────
+    # ── PHYSICS COMPONENTS ─────────────────────────────────────────────
     st.markdown("---")
     st.markdown("### ⚛️ FDM Physics Components")
     
@@ -359,83 +466,39 @@ if uploaded is not None:
     with col_b:
         display_image(physics.dark_photon_field, f"Dark Photon Field", 'plasma', figsize=(4, 4))
         st.metric("Contrast", f"{physics.dark_photon_field.std():.3f}")
+        st.caption(f"λ = {physics.metadata['wavelength_kpc']:.1f} kpc")
     
     with col_c:
         display_image(physics.dark_matter_density, "Dark Matter Density", 'viridis', figsize=(4, 4))
         st.metric("Mean", f"{physics.dark_matter_density.mean():.3f}")
-    
-    # ── SOLITON PROFILE (FIXED) ─────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📐 FDM Soliton Profile [sin(kr)/kr]²")
-    
-    # Get radial profile safely
-    soliton = physics.soliton_core
-    h, w = soliton.shape
-    cx, cy = w//2, h//2
-    y, x = np.ogrid[:h, :w]
-    r = np.sqrt((x - cx)**2 + (y - cy)**2)
-    
-    # Create radial bins
-    max_radius = min(h, w) // 2
-    if max_radius > 0:
-        radii = np.arange(0, max_radius, 3)
-        profile = []
-        for rad in radii:
-            mask = (r >= rad) & (r < rad + 3)
-            if np.any(mask):
-                profile.append(np.mean(soliton[mask]))
-            else:
-                profile.append(0)
-        
-        # Plot
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(radii[:len(profile)], profile, 'r-', linewidth=3, label='Simulated')
-        
-        # Theoretical fit (safe division)
-        if len(profile) > 1 and max(profile) > 0:
-            r_norm = radii[:len(profile)] / (max(radii[:len(profile)]) + 1e-9)
-            theoretical = np.sin(np.pi * r_norm) / (np.pi * r_norm + 1e-9)
-            theoretical = theoretical**2 * profile[0]
-            ax.plot(radii[:len(profile)], theoretical, 'b--', linewidth=2, label='[sin(kr)/kr]²')
-        
-        ax.set_xlabel("Radius (pixels)", fontsize=12)
-        ax.set_ylabel("Density", fontsize=12)
-        ax.set_title("FDM Soliton Ground State", fontsize=14)
-        ax.grid(True, alpha=0.3)
-        ax.legend()
-        st.pyplot(fig)
-        plt.close(fig)
-    else:
-        st.info("Image too small for radial profile")
+        st.caption("From ∇²Φ = 4πGρ")
     
     # ── METRICS ─────────────────────────────────────────────
     st.markdown("---")
     st.markdown("### 📈 Physics Metrics")
     
-    col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+    col_m1, col_m2, col_m3, col_m4, col_m5, col_m6 = st.columns(6)
     
     with col_m1:
         st.metric("Soliton Peak", f"{physics.soliton_core.max():.3f}")
-    
     with col_m2:
         st.metric("Fringe Contrast", f"{physics.dark_photon_field.std():.3f}")
-    
     with col_m3:
         st.metric("Mixing Angle", f"{physics.mixing_angle:.3f}")
-    
     with col_m4:
         st.metric("Entanglement Entropy", f"{physics.entanglement_entropy:.3f}")
-    
     with col_m5:
         gain = physics.entangled_image.std() / (img.std() + 1e-9)
         st.metric("Contrast Gain", f"{gain:.2f}x")
+    with col_m6:
+        st.metric("FDM Mass", f"{physics.metadata['m_fdm_eV']:.1e} eV")
     
     # ── DOWNLOAD ─────────────────────────────────────────────
     st.markdown("---")
     st.subheader("💾 Download Results")
     
     def array_to_bytes(arr, cmap='inferno'):
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(8, 8))
         if len(arr.shape) == 3:
             ax.imshow(np.clip(arr, 0, 1))
         else:
@@ -446,34 +509,46 @@ if uploaded is not None:
         plt.close(fig)
         return buf.getvalue()
     
-    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+    def annotated_to_bytes():
+        buf = io.BytesIO()
+        comparison_fig.savefig(buf, format='png', bbox_inches='tight', facecolor='black')
+        plt.close(comparison_fig)
+        return buf.getvalue()
+    
+    col_d1, col_d2, col_d3, col_d4, col_d5 = st.columns(5)
     
     with col_d1:
-        st.download_button("📸 Entangled", array_to_bytes(physics.entangled_image), "entangled.png")
+        st.download_button("📸 Annotated Comparison", annotated_to_bytes(), "annotated_comparison.png")
     with col_d2:
-        st.download_button("⭐ Soliton", array_to_bytes(physics.soliton_core, 'hot'), "soliton.png")
+        st.download_button("🌌 Entangled Image", array_to_bytes(physics.entangled_image), "entangled.png")
     with col_d3:
-        st.download_button("🌊 Fringe", array_to_bytes(physics.dark_photon_field, 'plasma'), "fringe.png")
+        st.download_button("⭐ Soliton Core", array_to_bytes(physics.soliton_core, 'hot'), "soliton.png")
     with col_d4:
-        st.download_button("🌌 Dark Matter", array_to_bytes(physics.dark_matter_density, 'viridis'), "darkmatter.png")
+        st.download_button("🌊 Fringe Pattern", array_to_bytes(physics.dark_photon_field, 'plasma'), "fringe.png")
+    with col_d5:
+        st.download_button("📋 Metadata", json.dumps(physics.metadata, indent=2), "metadata.json")
 
 else:
-    st.info("✨ **Upload an image to see FDM Soliton Waves**\n\n"
-            "**This app implements:**\n"
-            "• **FDM Soliton Core**: [sin(kr)/(kr)]² ground state\n"
-            "• **Dark Photon Field**: Interference patterns from photon-dark photon mixing\n"
-            "• **Dark Matter Density**: Substructure from gravitational potential\n"
-            "• **Von Neumann Entanglement**: Quantum mixing with entropy calculation\n\n"
-            "*Recommended: Ω=0.7, Fringe=65 for optimal visibility*")
+    st.info("✨ **Upload an image to see annotated physics outputs**\n\n"
+            "**Features:**\n"
+            "• 📏 **Scale Bar**: Physical scale in kpc\n"
+            "• 🧪 **Physics Info**: Ω, fringe, entropy, FDM mass\n"
+            "• 📐 **Formulas**: [sin(kr)/kr]², λ = h/(m v), S = -Tr(ρ log ρ)\n"
+            "• 📊 **Side-by-Side**: Before/After comparison with annotations\n\n"
+            "*Recommended: Ω=0.65-0.75, Fringe=55-70*")
     
+    # Show example
     st.markdown("---")
-    st.markdown("### 🎯 Quick Start")
+    st.markdown("### 📋 Example Output with Annotations")
     st.markdown("""
-    1. Upload Bullet Cluster, Abell 1689, or any galaxy cluster image
-    2. Adjust Ω to control dark matter visibility
-    3. Adjust Fringe to change wave pattern density
-    4. View soliton core, fringe patterns, and dark matter maps
+    The annotated output includes:
+    - **Scale Bar**: Physical scale reference (kpc)
+    - **North Indicator**: Orientation marker
+    - **Physics Parameters**: Ω, fringe, mixing angle, entanglement entropy
+    - **FDM Mass**: Effective dark matter particle mass
+    - **Wavelength**: Dark photon interference wavelength
+    - **Formulas**: Key physical equations
     """)
 
 st.markdown("---")
-st.markdown("🔭 **QCI AstroEntangle Refiner v22** | Final Working Version | Tony Ford Model")
+st.markdown("🔭 **QCI AstroEntangle Refiner v23** | Annotated Physics Outputs | Tony Ford Model")

@@ -60,22 +60,13 @@ class PhotonDarkPhotonModel:
         self.interference_pattern = None
         
     def klein_gordon_operator(self, psi, mass_kg, dt=1e-3):
-        """
-        Simplified Klein-Gordon evolution operator
-        □ϕ + m²ϕ = 0
-        """
-        # Laplacian approximation
+        """Simplified Klein-Gordon evolution operator"""
         laplacian = np.gradient(np.gradient(psi, axis=0), axis=0) + \
                     np.gradient(np.gradient(psi, axis=1), axis=1)
         return laplacian - mass_kg**2 * psi
     
     def schrodinger_poisson(self, psi, potential, dt=1e-3):
-        """
-        Non-relativistic Schrödinger-Poisson system:
-        i∂ₜψ = -∇²ψ/(2m) + Φψ
-        ∇²Φ = 4πG|ψ|²
-        """
-        # Simplified evolution
+        """Non-relativistic Schrödinger-Poisson system"""
         laplacian = np.gradient(np.gradient(psi, axis=0), axis=0) + \
                     np.gradient(np.gradient(psi, axis=1), axis=1)
         kinetic = -laplacian / (2 * self.dark_mass_kg if hasattr(self, 'dark_mass_kg') else 1e-30)
@@ -89,49 +80,29 @@ class PhotonDarkPhotonModel:
         Based on:
         ρ = |ψ_light|² + |ψ_dark|² + 2Re(ψ_light* ψ_dark e^(iΔφ))
         Fringe spacing λ = h/(mΔv)
-        
-        Returns:
-        - interference_pattern: 2D array of interference fringes
-        - fringe_spacing_px: fringe spacing in pixels
-        - entanglement_observable: Ω_PD = 2ε
         """
         ny, nx = image_norm.shape
         X, Y = np.meshgrid(np.arange(nx), np.arange(ny))
         
-        # Store dark mass for other methods
         self.dark_mass_kg = self.const.eV_to_kg(dark_photon_mass_eV)
         
-        # Calculate de Broglie wavelength (fringe spacing)
-        # λ = h/(mΔv)
-        delta_v = relative_velocity  # m/s
+        delta_v = relative_velocity
         de_broglie_m = self.const.h / (self.dark_mass_kg * delta_v)
         fringe_px = de_broglie_m / pixel_scale_m
-        
-        # Avoid infinite or extremely small fringes
         fringe_px = np.clip(fringe_px, 2.0, min(nx, ny) / 2)
         
-        # Wave numbers for interference pattern
         kx = 2 * np.pi / fringe_px
         ky = 2 * np.pi / fringe_px
-        
-        # Phase difference Δφ = Δk·x
         delta_phase = kx * X + ky * Y
         
-        # Light sector amplitude (normalized image)
         psi_light = np.sqrt(image_norm)
-        
-        # Dark sector amplitude (proportional to mixing parameter)
         psi_dark = np.sqrt(mixing_epsilon) * np.ones_like(psi_light)
         
-        # Total interference pattern from two-field duality
-        # ρ = |ψ_light|² + |ψ_dark|² + 2Re(ψ_light* ψ_dark e^(iΔφ))
         interference = np.abs(psi_light)**2 + np.abs(psi_dark)**2 + \
                        2 * psi_light * psi_dark * np.cos(delta_phase)
         
-        # Normalize interference pattern
         interference = (interference - interference.min()) / (interference.max() - interference.min() + 1e-10)
         
-        # Entanglement observable Ω_PD = 2ε (from the derivation)
         entanglement_observable = 2 * mixing_epsilon
         
         self.interference_pattern = interference
@@ -141,18 +112,7 @@ class PhotonDarkPhotonModel:
         return interference, fringe_px, entanglement_observable
     
     def solitonic_core_profile(self, radius_px, r_core_px, rho_core):
-        """
-        Solitonic core density profile from FDM theory:
-        ρ(r) = ρ_c / [1 + (r/r_c)²]⁸
-        
-        This describes the stable, non-fragmenting solitonic core
-        that solves the cusp-core problem in dwarf galaxies.
-        
-        Parameters:
-        - radius_px: radial distance in pixels
-        - r_core_px: core radius in pixels
-        - rho_core: central density
-        """
+        """Solitonic core density profile: ρ(r) = ρ_c / [1 + (r/r_c)²]⁸"""
         r_norm = radius_px / (r_core_px + 1e-10)
         return rho_core / (1 + r_norm**2)**8
     
@@ -204,28 +164,14 @@ class PhotonDarkPhotonModel:
     
     def calculate_conversion_map(self, image_norm, mixing_epsilon, dark_photon_mass_eV,
                                   distance_m, E_photon_eV, pixel_scale_m, relative_velocity=2e5):
-        """
-        Full conversion probability using two-field FDM interference
-        
-        Based on the Cosmic Entanglement Visualizer derivation:
-        - Two-field duality: ψ = ψ_light + ψ_dark e^(iΔφ)
-        - Interference creates observable density fringes
-        - Fringe spacing λ = h/(mΔv)
-        """
-        # Calculate two-field interference pattern
+        """Full conversion probability using two-field FDM interference"""
         interference, fringe_px, entanglement_obs = self.calculate_two_field_interference(
             image_norm, mixing_epsilon, dark_photon_mass_eV, relative_velocity, pixel_scale_m
         )
         
-        # Conversion probability is proportional to interference visibility
-        # Ω_PD = 2ε (entanglement observable)
         prob_map = entanglement_obs * interference
-        
-        # Modulate by image brightness
         prob_map = prob_map * (0.5 + 0.5 * image_norm)
         prob_map = np.clip(prob_map, 0, 1)
-        
-        # Handle any NaN or Inf values
         prob_map = np.nan_to_num(prob_map, nan=0.0, posinf=0.0, neginf=0.0)
         
         return prob_map
@@ -236,18 +182,11 @@ class PhotonDarkPhotonModel:
                               distance_mpc=430, E_photon_eV=1.0,
                               apply_psf=True, apply_neural=True,
                               psf_fwhm_arcsec=0.05):
-        """
-        Enhanced initialization with full FDM two-field physics
+        """Enhanced initialization with full FDM two-field physics"""
         
-        Implements the complete framework from:
-        https://cosmic-entanglement-visualizer-f4f21576.base44.app/Equations
-        """
-        
-        # Validate input
         if image_data is None:
             raise ValueError("Image data is None")
         
-        # Normalize image with safe bounds
         img_min = float(image_data.min())
         img_max = float(image_data.max())
         
@@ -258,39 +197,32 @@ class PhotonDarkPhotonModel:
         self.original_norm = np.clip(self.original_norm, 0, 1)
         img_norm = self.original_norm.copy()
         
-        # Calculate pixel scales
         distance_m = distance_mpc * 3.085677581e22
         pixel_scale_rad = pixel_scale_arcsec * (math.pi / (180 * 3600))
         pixel_scale_m = pixel_scale_rad * distance_m
         
-        # Apply PSF correction
         if apply_psf and psf_fwhm_arcsec > 0:
             img_psf = self.apply_psf_correction(img_norm, psf_fwhm_arcsec, pixel_scale_arcsec)
         else:
             img_psf = img_norm
         
-        # Apply neural-inspired enhancement
         if apply_neural:
             img_enhanced = self.neural_enhancement(img_psf, method='clahe')
         else:
             img_enhanced = img_psf
         
-        # Calculate full quantum conversion probability map using two-field FDM
         prob_map = self.calculate_conversion_map(
             img_enhanced, mixing_epsilon, dark_photon_mass_eV,
             distance_m, E_photon_eV, pixel_scale_m, relative_velocity
         )
         
-        # Create final entanglement/conversion map
         self.conversion_probability_map = prob_map
         entanglement = img_enhanced * (1 - prob_map) + prob_map * (1 - img_enhanced)
         entanglement = np.clip(entanglement, 0, 1)
         
-        # Store results
         self.entanglement_map = entanglement
         self.enhanced_map = img_enhanced
         
-        # Calculate entropy (information-theoretic)
         hist, _ = np.histogram(img_norm.flatten(), bins=50, range=(0, 1))
         hist = hist[hist > 0]
         if len(hist) > 0:
@@ -299,7 +231,6 @@ class PhotonDarkPhotonModel:
         else:
             entropy = 0.0
         
-        # Calculate quantum concurrence (entanglement measure)
         if prob_map is not None and np.any(np.isfinite(prob_map)):
             avg_prob = float(np.mean(prob_map))
             avg_prob = np.clip(avg_prob, 0, 1)
@@ -311,10 +242,8 @@ class PhotonDarkPhotonModel:
             concurrence = 0.0
             purity = 1.0
         
-        # Calculate fringe spacing in kpc for metadata
         fringe_kpc = self.fringe_spacing_px * pixel_scale_m / self.const.kpc if hasattr(self, 'fringe_spacing_px') else 0
         
-        # Store metadata
         self.metadata = {
             'entropy': entropy,
             'concurrence': concurrence,
@@ -335,43 +264,36 @@ class PhotonDarkPhotonModel:
         return self.metadata
     
     def get_entanglement_map(self):
-        """Return the computed entanglement map"""
         return self.entanglement_map if self.entanglement_map is not None else np.zeros((10, 10))
     
     def get_conversion_map(self):
-        """Return the conversion probability map"""
         return self.conversion_probability_map if self.conversion_probability_map is not None else np.zeros((10, 10))
     
     def get_enhanced_map(self):
-        """Return the enhanced image"""
         return self.enhanced_map if self.enhanced_map is not None else np.zeros((10, 10))
     
     def get_interference_pattern(self):
-        """Return the two-field interference pattern"""
         return self.interference_pattern if self.interference_pattern is not None else np.zeros((10, 10))
     
     def get_metadata(self):
-        """Return physics metadata"""
         return self.metadata if self.metadata else {}
     
     def compute_solitonic_profile(self, radius_px, r_core_px, rho_core):
-        """Compute solitonic core profile for visualization"""
         return self.solitonic_core_profile(radius_px, r_core_px, rho_core)
 
 
-# Compatibility aliases for v4
+# Compatibility aliases
 PhotonDarkPhotonEngine = PhotonDarkPhotonModel
 H = PhysicalConstants.h
 HBAR = PhysicalConstants.hbar
 C = PhysicalConstants.c
-ALPHA = 1/137.035999084  # Fine structure constant
-M_E = 9.1093837015e-31   # Electron mass in kg
+ALPHA = 1/137.035999084
+M_E = 9.1093837015e-31
 EV = PhysicalConstants.eV
-K_B = 1.380649e-23       # Boltzmann constant
-EPS0 = 8.8541878128e-12  # Vacuum permittivity
+K_B = 1.380649e-23
+EPS0 = 8.8541878128e-12
 
 
-# Test function
 if __name__ == "__main__":
     print("=" * 60)
     print("FDM Two-Field Physics Engine v4.5")
@@ -380,29 +302,5 @@ if __name__ == "__main__":
     
     test_img = np.random.rand(100, 100)
     engine = PhotonDarkPhotonModel()
-    metadata = engine.initialize_from_image(
-        test_img, 
-        dark_photon_mass_eV=1e-22, 
-        mixing_epsilon=1e-8,
-        E_photon_eV=1.0,
-        relative_velocity=200000,
-        apply_psf=True,
-        apply_neural=True
-    )
-    
+    metadata = engine.initialize_from_image(test_img)
     print("\n✅ FDM Physics Engine v4.5 Working!")
-    print(f"\n📊 Physics Metrics:")
-    print(f"   Entropy: {metadata['entropy']:.5f} bits")
-    print(f"   Concurrence: {metadata['concurrence']:.2e}")
-    print(f"   Purity: {metadata['purity']:.6f}")
-    print(f"   Avg Conversion: {metadata['avg_conversion_probability']:.2e}")
-    print(f"   Fringe Spacing: {metadata.get('fringe_spacing_kpc', 0):.3f} kpc")
-    print(f"   Entanglement Observable Ω_PD: {metadata.get('entanglement_observable', 0):.2e}")
-    print(f"   Relative Velocity: {metadata.get('relative_velocity_kms', 0):.1f} km/s")
-    
-    print("\n🔬 FDM Equations Implemented:")
-    print("   ✓ Klein-Gordon: □ϕ + m²ϕ = 0")
-    print("   ✓ Schrödinger-Poisson: i∂ₜψ = -∇²ψ/(2m) + Φψ")
-    print("   ✓ Two-field interference: ρ = |ψ_light|² + |ψ_dark|² + 2Re(ψ_light* ψ_dark e^(iΔφ))")
-    print("   ✓ Fringe spacing: λ = h/(mΔv)")
-    print("   ✓ Solitonic core: ρ(r) = ρ_c / [1 + (r/r_c)²]⁸")

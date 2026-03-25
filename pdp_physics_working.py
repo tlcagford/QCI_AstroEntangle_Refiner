@@ -178,7 +178,13 @@ class PhotonDarkPhotonModel:
         distance_m = distance_mpc * 3.085677581e22
         pixel_scale_rad = pixel_scale_arcsec * (math.pi / (180 * 3600))
         pixel_scale_m = pixel_scale_rad * distance_m
-        
+        # Calculate quantum concurrence (entanglement measure)
+avg_prob = np.mean(prob_map)
+concurrence = 2 * avg_prob * (1 - avg_prob) * mixing_epsilon
+concurrence = np.clip(concurrence, 0, 1)
+
+# Calculate purity
+purity = 1 - concurrence**2
         # Apply PSF correction (telescope beam correction)
         if apply_psf:
             img_psf = self.apply_psf_correction(img_norm, psf_fwhm_arcsec, pixel_scale_arcsec)

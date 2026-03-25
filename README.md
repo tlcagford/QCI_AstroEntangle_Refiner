@@ -24,8 +24,8 @@ This repository provides a complete computational framework for analyzing astron
 
 The application is deployed on Streamlit Cloud:
 
-**[https://qciastroentanglerefiner.streamlit.app](https://qciastroentanglerefiner.streamlit.app)**
-
+[**[https://qciastroentanglerefiner.streamlit.app](https://qciastroentanglerefiner.streamlit.app)**
+](https://qciastroentanglerefiner-awpyvm8ydzyyqu4qfwysze.streamlit.app/)
 Upload your FITS or image files to see:
 - FDM soliton cores in galaxy clusters
 - Dark photon interference patterns

@@ -1,9 +1,10 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy.io import fits
 
 # -------------------------------
-# Title
+# Page Setup
 # -------------------------------
 st.set_page_config(page_title="Photon–Dark Photon Simulator", layout="wide")
 st.title("Photon–Dark Photon Cluster Simulator")
@@ -19,7 +20,7 @@ cluster = st.sidebar.selectbox(
 )
 
 # --- SAFE LOG SLIDERS ---
-log_epsilon = st.sidebar.slider("log10(ε)", -12, -5, -6)
+log_epsilon = st.sidebar.slider("log10(ε)", -12, -2, -6)
 epsilon = 10 ** log_epsilon
 
 log_m = st.sidebar.slider("log10(m_dark [eV])", -14, -10, -12)
@@ -34,7 +35,17 @@ E = st.sidebar.slider(
 )
 
 # -------------------------------
-# Cluster Density Profiles
+# FITS Upload
+# -------------------------------
+st.sidebar.header("Data Input")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload FITS Image",
+    type=["fits", "fit"]
+)
+
+# -------------------------------
+# Cluster Density Model
 # -------------------------------
 def ne_profile(r, cluster):
     if cluster == "Bullet Cluster":
@@ -45,9 +56,41 @@ def ne_profile(r, cluster):
         return 1e-3 * (1 + r**2)**(-1.3)
     return 1e-3
 
+# -------------------------------
+# FITS Loader
+# -------------------------------
+def load_fits(file):
+    with fits.open(file) as hdul:
+        data = hdul[0].data
+    return np.nan_to_num(data)
 
 # -------------------------------
-# Simulation (Cached)
+# Normalize Image
+# -------------------------------
+def normalize(img):
+    return (img - img.min()) / (img.max() - img.min() + 1e-12)
+
+# -------------------------------
+# Conversion Engine (FAST)
+# -------------------------------
+def apply_conversion(image, epsilon, m_dark, E, cluster):
+    h, w = image.shape
+
+    y, x = np.indices((h, w))
+    r = np.sqrt((x - w/2)**2 + (y - h/2)**2) / 50.0
+
+    ne = ne_profile(r, cluster)
+    omega_p2 = ne * 1e-12
+
+    delta = m_dark**2 - omega_p2
+    phase = delta * r / (4 * E)
+
+    P = epsilon**2 * np.sin(phase)**2
+
+    return image * (1 - P), P
+
+# -------------------------------
+# Simulation Plot (1D)
 # -------------------------------
 @st.cache_data
 def run_simulation(epsilon, m_dark, E, cluster):
@@ -56,7 +99,7 @@ def run_simulation(epsilon, m_dark, E, cluster):
 
     for x in r:
         ne = ne_profile(x, cluster)
-        omega_p2 = ne * 1e-12  # simplified plasma scaling
+        omega_p2 = ne * 1e-12
 
         delta = m_dark**2 - omega_p2
         phase = delta * x / (4 * E)
@@ -65,35 +108,27 @@ def run_simulation(epsilon, m_dark, E, cluster):
 
     return r, np.array(P)
 
-
-# Run simulation
-r, P = run_simulation(epsilon, m_dark, E, cluster)
-
-# -------------------------------
-# BEFORE vs AFTER
-# -------------------------------
-before = np.ones_like(P)
-after = 1 - P
+r, P_curve = run_simulation(epsilon, m_dark, E, cluster)
 
 # -------------------------------
 # Layout
 # -------------------------------
 col1, col2 = st.columns(2)
 
-# --- Plot 1: Conversion Probability ---
+# --- Plot 1 ---
 with col1:
     fig1, ax1 = plt.subplots()
-    ax1.plot(r, P)
+    ax1.plot(r, P_curve)
     ax1.set_title("Conversion Probability")
     ax1.set_xlabel("Radius")
     ax1.set_ylabel("P(γ → A')")
     st.pyplot(fig1)
 
-# --- Plot 2: Before vs After ---
+# --- Plot 2 ---
 with col2:
     fig2, ax2 = plt.subplots()
-    ax2.plot(r, before, label="Before")
-    ax2.plot(r, after, label="After")
+    ax2.plot(r, np.ones_like(P_curve), label="Before")
+    ax2.plot(r, 1 - P_curve, label="After")
     ax2.set_title("Photon Intensity")
     ax2.set_xlabel("Radius")
     ax2.set_ylabel("Intensity")
@@ -101,7 +136,33 @@ with col2:
     st.pyplot(fig2)
 
 # -------------------------------
-# Resonance Indicator
+# FITS Processing Section
+# -------------------------------
+if uploaded_file is not None:
+    image = load_fits(uploaded_file)
+    processed, P_map = apply_conversion(image, epsilon, m_dark, E, cluster)
+    diff = image - processed
+
+    st.subheader("FITS Image Processing")
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.subheader("Before")
+        st.image(normalize(image), clamp=True)
+
+    with col4:
+        st.subheader("After")
+        st.image(normalize(processed), clamp=True)
+
+    st.subheader("Difference Map")
+    st.image(normalize(diff), clamp=True)
+
+    st.subheader("Conversion Probability Map")
+    st.image(normalize(P_map), clamp=True)
+
+# -------------------------------
+# Resonance Check
 # -------------------------------
 omega_avg = np.mean([ne_profile(x, cluster) for x in r]) * 1e-12
 
@@ -109,7 +170,7 @@ if abs(m_dark**2 - omega_avg) < 1e-24:
     st.warning("⚡ Resonance condition detected!")
 
 # -------------------------------
-# Info Panel
+# Parameters Display
 # -------------------------------
 st.markdown("### Simulation Parameters")
 st.write({

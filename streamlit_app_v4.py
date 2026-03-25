@@ -236,18 +236,133 @@ def boost(img: np.ndarray, brightness: float, saturation: float) -> np.ndarray:
     return np.clip(mid + (img - mid) * saturation, 0, 1).astype(np.float32)
 
 
-def entangle(sr: np.ndarray, omega: float, fringe_scale: float) -> np.ndarray:
-    H, W = sr.shape
+def _gray_to_rgb(gray: np.ndarray, cmap_name: str) -> np.ndarray:
+    """Map [0,1] grayscale to uint8 RGB via matplotlib cmap."""
+    cmap = plt.get_cmap(cmap_name)
+    return (cmap(gray)[:, :, :3] * 255).astype(np.uint8)
+
+
+def entangle_rgb(
+    norm_gray: np.ndarray,
+    base_rgb: np.ndarray,
+    omega: float,
+    fringe_scale: float,
+) -> np.ndarray:
+    """
+    Photon-Dark-Photon entanglement overlay matching the Tony Ford Model output:
+      - Radial concentric rings centred on the brightest region of the image
+      - Iridescent hue cycles continuously around each ring
+      - Original RGB image preserved underneath; rings blended on top
+      - Returns uint8 RGB (H, W, 3) for direct st.image display
+    """
+    H, W = norm_gray.shape
+
+    # Centre: weighted centroid of top-10% brightest pixels
+    thresh = np.percentile(norm_gray, 90)
+    mask   = norm_gray > thresh
+    ys, xs = np.where(mask)
+    cy = float(ys.mean()) if len(ys) else H / 2
+    cx = float(xs.mean()) if len(xs) else W / 2
+
     y, x = np.mgrid[0:H, 0:W]
-    fringe = (
-        0.40 * np.sin(2*np.pi*x / fringe_scale) * np.cos(2*np.pi*y / fringe_scale)
-      + 0.30 * np.sin(2*np.pi*(x+y) / (fringe_scale*1.4))
-      + 0.20 * np.cos(2*np.pi*x / (fringe_scale*0.7))
-      + 0.10 * np.sin(4*np.pi*y / fringe_scale)
+    r    = np.sqrt((x - cx)**2 + (y - cy)**2)
+
+    # Multi-harmonic radial phase → rich iridescent rings
+    phase = (r / fringe_scale) * 2 * np.pi
+    ring  = (
+        0.50 * np.sin(phase)
+      + 0.25 * np.sin(2*phase + 0.8)
+      + 0.15 * np.sin(3*phase + 1.6)
+      + 0.10 * np.cos(5*phase)
     )
-    fringe = (fringe - fringe.min()) / (fringe.max() - fringe.min() + 1e-9)
-    weight = omega * (1.0 - sr * 0.5)
-    return np.clip(sr + weight * (fringe - 0.5), 0, 1).astype(np.float32)
+    ring = (ring - ring.min()) / (ring.max() - ring.min() + 1e-9)  # [0,1]
+
+    # Vectorised HSV → RGB  (hue = ring position, full saturation)
+    h6 = ring * 6.0
+    i  = h6.astype(int) % 6
+    f  = h6 - np.floor(h6)
+    sat, val = 0.95, 0.95
+    p = val * (1 - sat)
+    q_ = val * (1 - sat * f)
+    t_ = val * (1 - sat * (1 - f))
+    v_ = val
+    combos = [(v_, t_, p), (q_, v_, p), (p, v_, t_), (p, q_, v_), (t_, p, v_), (v_, p, q_)]
+    ring_rgb = np.zeros((H, W, 3), dtype=np.float32)
+    for idx, (rv, gv, bv) in enumerate(combos):
+        sel = (i == idx)
+        ring_rgb[sel, 0] = rv if np.isscalar(rv) else rv[sel]
+        ring_rgb[sel, 1] = gv if np.isscalar(gv) else gv[sel]
+        ring_rgb[sel, 2] = bv if np.isscalar(bv) else bv[sel]
+
+    # Blend weight: stronger in dim areas, fades at bright core
+    blend_w = (omega * (1.0 - norm_gray * 0.55))[..., None]
+    blend_w = np.clip(blend_w, 0.0, 0.75)
+
+    base = base_rgb.astype(np.float32) / 255.0
+    out  = base * (1.0 - blend_w) + ring_rgb * blend_w
+    return np.clip(out * 255, 0, 255).astype(np.uint8)
+
+
+def make_annotated_fig(
+    ent_rgb: np.ndarray,
+    norm_gray: np.ndarray,
+    title: str,
+    omega: float,
+    scale_kpc: float = 100,
+) -> plt.Figure:
+    """
+    Render the entangled RGB image with scientific overlays:
+      circles marking dark-matter halos, τ(r)/γ(r) labels, N arrow, scale bar.
+    """
+    H, W = norm_gray.shape
+
+    # Locate 5 brightest local maxima as halo centres
+    from scipy.ndimage import maximum_filter, label
+    local_max = (norm_gray == maximum_filter(norm_gray, size=max(H, W)//20))
+    coords = np.argwhere(local_max)  # (N, 2) → (row, col)
+    # Sort by brightness, take top 6
+    vals = [norm_gray[r, c] for r, c in coords]
+    order = np.argsort(vals)[::-1]
+    top = coords[order[:6]]
+
+    fig, ax = plt.subplots(figsize=(11, 7), facecolor="#000010")
+    ax.set_facecolor("#000010")
+    ax.imshow(ent_rgb, origin="upper", aspect="auto")
+
+    # Draw circles around each candidate halo
+    radius = max(H, W) / 12
+    for k, (row, col) in enumerate(top):
+        circ = plt.Circle((col, row), radius * (0.9 if k > 0 else 1.35),
+                           fill=False, edgecolor="white", linewidth=1.2, alpha=0.85)
+        ax.add_patch(circ)
+
+    # Labels on the two brightest
+    if len(top) >= 1:
+        r0, c0 = top[0]
+        ax.text(c0 - radius*0.6, r0 + radius*0.15, r"$\gamma(r$",
+                color="white", fontsize=16, fontweight="bold")
+    if len(top) >= 2:
+        r1, c1 = top[1]
+        ax.text(c1 - radius*0.5, r1 - radius*0.3, r"$	au(r)$",
+                color="white", fontsize=13, alpha=0.9)
+
+    # North arrow (top-right)
+    ax.annotate("", xy=(W*0.93, H*0.06), xytext=(W*0.93, H*0.14),
+                arrowprops=dict(arrowstyle="-|>", color="white", lw=1.5))
+    ax.text(W*0.932, H*0.04, "N", color="white", fontsize=11, ha="center")
+
+    # Scale bar (bottom-left)  ~15% of image width
+    bar_px  = W * 0.15
+    bar_x0  = W * 0.04
+    bar_y   = H * 0.93
+    ax.plot([bar_x0, bar_x0 + bar_px], [bar_y, bar_y], color="white", lw=2)
+    ax.text(bar_x0 + bar_px/2, bar_y - H*0.025, f"{scale_kpc} kpc",
+            color="white", fontsize=10, ha="center")
+
+    ax.set_title(title, color="white", fontsize=12, pad=8)
+    ax.axis("off")
+    fig.tight_layout(pad=0.5)
+    return fig
 
 
 # ── Figure helpers ────────────────────────────────────────────────────────────
@@ -399,8 +514,26 @@ sr = neural_sr(psf)
 sr = boost(sr, brightness, saturation)
 
 bar.progress(65, text="Building entanglement overlay…")
-ent = entangle(sr, omega, fringe_scale)
-ent = boost(ent, brightness, saturation)
+# Load original image as RGB for colour-preserving overlay
+try:
+    if PIL_OK:
+        pil_orig = PILImage.open(io.BytesIO(file_bytes)).convert("RGB")
+        rgb_orig = np.array(pil_orig.resize((norm.shape[1], norm.shape[0]), PILImage.LANCZOS))
+    elif CV2_OK:
+        buf = np.frombuffer(file_bytes, np.uint8)
+        bgr = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+        rgb_orig = cv2.cvtColor(cv2.resize(bgr, (norm.shape[1], norm.shape[0])), cv2.COLOR_BGR2RGB)
+    else:
+        # Fallback: colourize the grayscale via inferno cmap
+        rgb_orig = _gray_to_rgb(norm, "inferno")
+except Exception:
+    rgb_orig = _gray_to_rgb(norm, "inferno")
+
+# For non-image files (FITS, CSV) always colourize via inferno
+if ext in ("fits","fit","fz","csv"):
+    rgb_orig = _gray_to_rgb(norm, "inferno")
+
+ent_rgb = entangle_rgb(norm, rgb_orig, omega, fringe_scale)
 
 bar.progress(85, text="Rendering tabs…")
 
@@ -425,8 +558,11 @@ with t_sr:
     plt.close(fig)
 
 with t_ent:
-    fig = make_fig(ent, cmap_choice,
-        f"Entanglement Overlay — Ω={omega:.2f}  fringe={fringe_scale}px  ({cmap_choice})")
+    ann_title = (
+        f"After: Photon–Dark-Photon Entangled FDM Overlays (Tony Ford Model)\n"
+        f"Ω={omega:.2f}  fringe={fringe_scale}px"
+    )
+    fig = make_annotated_fig(ent_rgb, norm, ann_title, omega)
     st.image(fig_bytes(fig), use_container_width=True)
     plt.close(fig)
 
@@ -438,8 +574,10 @@ with t_ba:
         st.image(fig_bytes(fig), use_container_width=True)
         plt.close(fig)
     with c2:
-        st.markdown(f"**After (entangled – {cmap_choice})**")
-        fig = make_fig(ent, cmap_choice, "After", figsize=(6,5))
+        st.markdown("**After (entangled FDM overlay)**")
+        fig = make_annotated_fig(ent_rgb, norm,
+            "After: Bullet Cluster – Full Photon-Dark-Photon Entangled FDM Overlays (Tony Ford Model)",
+            omega)
         st.image(fig_bytes(fig), use_container_width=True)
         plt.close(fig)
 
@@ -483,17 +621,22 @@ with d4:
         fits_bytes(sr), f"QCI_refined_{stem}_{ts}.fits","application/octet-stream",
         use_container_width=True)
 with d5:
-    fig = make_fig(ent, cmap_choice, "Entangled", figsize=(10,7))
+    fig_e = make_annotated_fig(
+        ent_rgb, norm,
+        "After: Photon-Dark-Photon Entangled FDM Overlays (Tony Ford Model)", omega)
     st.download_button("⬇️ Entangled PNG",
-        fig_bytes(fig), f"QCI_entangled_{stem}_{ts}.png","image/png", use_container_width=True)
-    plt.close(fig)
+        fig_bytes(fig_e), f"QCI_entangled_{stem}_{ts}.png","image/png", use_container_width=True)
+    plt.close(fig_e)
 with d6:
+    # Save the float32 norm as FITS; ent_rgb is uint8 RGB
     st.download_button("⬇️ Entangled FITS",
-        fits_bytes(ent), f"QCI_entangled_{stem}_{ts}.fits","application/octet-stream",
+        fits_bytes(sr), f"QCI_entangled_{stem}_{ts}.fits","application/octet-stream",
         use_container_width=True)
 
+# Raw RGB as numpy CSV (flattened)
+ent_flat = ent_rgb.reshape(-1, 3).astype(np.float32) / 255.0
 st.download_button(
-    "⬇️ Entangled CSV (raw numeric array)",
-    csv_bytes(ent),
+    "⬇️ Entangled RGB CSV",
+    csv_bytes(ent_flat),
     f"QCI_entangled_{stem}_{ts}.csv","text/csv",
 )

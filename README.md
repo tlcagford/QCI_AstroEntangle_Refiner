@@ -3,119 +3,102 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-Cloud-red.svg)](https://streamlit.io)
 [![arXiv](https://img.shields.io/badge/arXiv-2503.12345-b31b1b.svg)](https://arxiv.org)
-# Release Notes - QCI AstroEntangle Refiner v25
 
-## 🚀 Final Production Release | March 25, 2026
 
-### Overview
+# Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
 
-The **QCI AstroEntangle Refiner v25** represents the culmination of integrating the **Primordial Photon-DarkPhoton Entanglement** framework with the **Quantum Cosmology Integration Suite (QCIS)**. This release delivers a complete, production-ready astrophysics pipeline for analyzing astronomical imaging data through the lens of quantum entanglement between visible photons and dark sector particles.
-
----
+A collection of four interconnected open‑source projects that explore the quantum nature of the universe – from the early cosmos to extreme astrophysical environments.
 ## 📸 Live Demo
 
 The application is deployed on Streamlit Cloud:
 
-[**[https://qciastroentanglerefiner-awpyvm8ydzyyqu4qfwysze.streamlit.app/**
-](https://qciastroentanglerefiner-awpyvm8ydzyyqu4qfwysze.streamlit.app/)
-Upload your FITS or image files to see:
-- FDM soliton cores in galaxy clusters
-- Dark photon interference patterns
-- Dark matter density maps
-- Quantum entanglement metrics
+Live App test now: https://w7xsyujq7jzxrftum8xzcj.streamlit.app/
 
-## ✨ New Features
-
-### 🔬 Core Physics Integration
-- **Von Neumann Equation Solver**: Complete implementation of `i∂ρ/∂t = [H_eff, ρ]` for coupled photon-dark photon systems with cosmic expansion
-- **Schrödinger-Poisson System**: FDM soliton ground state solver with `ρ(r) ∝ [sin(kr)/(kr)]²` profile
-- **Two-Field Interference**: Observable fringe patterns with physical wavelength `λ = h/(m v)`
-- **Entanglement Entropy**: Von Neumann entropy `S = -Tr(ρ log ρ)` calculation
-- **FDM Mass Scaling**: Automatic mass parameterization from fringe scale (10⁻²² - 10⁻²¹ eV range)
-
-### 🎯 Cluster Presets
-One-click configuration for five key astronomical targets:
-
-| Preset | Ω | Fringe | Scale | Application |
-|--------|---|--------|-------|-------------|
-| **Bullet Cluster** | 0.75 | 70 | 200 kpc | Dark matter separation visualization |
-| **Abell 1689** | 0.65 | 55 | 150 kpc | Strong lensing + soliton core |
-| **Abell 209** | 0.70 | 60 | 100 kpc | Balanced wave visibility |
-| **Abell 2218** | 0.68 | 50 | 120 kpc | Giant arc reconstruction |
-| **COSMOS Field** | 0.60 | 45 | 80 kpc | Deep field quantum effects |
-
-### 🏷️ Image Annotation System
-- **Scale Bar**: Automatic physical scale overlay in kpc
-- **North Indicator**: Orientation marker
-- **Physics Info Box**: Real-time display of Ω, fringe, mixing angle, entanglement entropy
-- **Formula Overlays**: Key equations ([sin(kr)/kr]², λ = h/(m v), S = -Tr(ρ log ρ))
-- **Side-by-Side Comparison**: Before/after with full annotations matching publication standards
-
-### 📊 Enhanced Outputs
-- **RGB Composite**: Visual separation (R=Image, G=Dark Photon, B=Dark Matter)
-- **Power Spectrum**: P(k) analysis for statistical validation
-- **2-Point Correlation**: ξ(r) structure function
-- **Radial Profile**: [sin(kr)/kr]² fit verification
-- **Metadata Export**: Complete JSON with all physics parameters
+- **QCI AstroEntangle Refiner** – FDM soliton physics & image processing  
+- **Magnetar QED Explorer** – Magnetar fields, dark photons & vacuum QED  
+- **Primordial Photon–DarkPhoton Entanglement** – Von Neumann evolution in an expanding universe  
+- **QCIS (Quantum Cosmology Integration Suite)** – Quantum‑corrected cosmological perturbations
 
 ---
 
-## 🔧 Improvements
+## 🔭 Overview
 
-### Performance
-- **Image Resizing**: Automatic downsampling to 500px for rapid processing
-- **Optimized FFT**: Faster power spectrum computation
-- **Memory Efficiency**: Reduced memory footprint by 40%
+These four projects form a complete computational framework for **quantum‑inspired astrophysics**. Together they enable:
 
-### Usability
-- **Intuitive Sliders**: Real-time parameter adjustment with immediate visual feedback
-- **Error Handling**: Graceful fallbacks for all physics solvers
-- **Progress Indicators**: Visual feedback during processing
-- **Responsive Design**: Light blue interface optimized for all screen sizes
+- **Image analysis** of galaxy clusters (Abell, Bullet, etc.) using Fuzzy Dark Matter (FDM) soliton overlays.
+- **Simulation of magnetar magnetospheres** with strong‑field QED, dark photon production, and Kerr geodesics.
+- **First‑principles modeling** of photon–dark photon entanglement in the expanding universe.
+- **Quantum‑corrected power spectra** and transfer functions for cosmological parameter inference.
 
-### Compatibility
-- **FITS Support**: Full support for multi-extension HST/JWST FITS files
-- **Image Formats**: PNG, JPG, JPEG, TIFF, FITS
-- **Streamlit Cloud**: Fully optimized for cloud deployment
+All tools are designed to be accessible, interactive, and fully open for academic research.
 
 ---
 
-## 📋 Output Formats
+## 📦 The Four Projects
 
-| Output | Format | Description |
-|--------|--------|-------------|
-| Annotated Comparison | PNG | Side-by-side before/after with physics overlays |
-| Entangled Image | PNG | Final PDP-processed image |
-| FDM Soliton Core | PNG | [sin(kr)/kr]² ground state density |
-| Dark Photon Field | PNG | Interference pattern with wavelength annotation |
-| Dark Matter Density | PNG | Mass distribution from ∇²Φ = 4πGρ |
-| RGB Composite | PNG | Color-coded component separation |
-| Metadata | JSON | Complete physics parameters and metrics |
+### 1. [QCI AstroEntangle Refiner](https://github.com/tlcagford/QCI_AstroEntangle_Refiner)
+*FDM soliton physics & image processing*
+
+- Upload FITS or standard images of galaxy clusters.
+- Apply Photon‑Dark‑Photon (PDP) entanglement to produce overlays showing FDM soliton cores, dark photon wave patterns, and dark matter density.
+- Annotated side‑by‑side comparison with scale bar, north indicator, and physics formulas.
+- Export results as PNG and metadata JSON.
+
+### 2. [Magnetar QED Explorer](https://github.com/tlcagford/Magnetar-Quantum-Vacuum-Engineering-for-Extreme-Astrophysical-Environments-)
+*Magnetar fields, dark photons & vacuum QED*
+
+- Interactive simulation of magnetar dipole fields, Euler‑Heisenberg vacuum polarisation, and dark photon conversion.
+- Visualise Kerr spacetime null geodesics.
+- Drag‑and‑drop image upload or preloaded examples (Bullet Cluster, Crab Nebula, etc.) to see PDP‑enhanced overlays.
+- All plots downloadable.
+
+### 3. [Primordial Photon–DarkPhoton Entanglement](https://github.com/tlcagford/Primordial-Photon-DarkPhoton-Entanglement)
+*Von Neumann evolution in an expanding universe*
+
+- Solves the von Neumann equation \(i\partial_t\rho = [H_{\text{eff}},\rho]\) for a coupled photon‑dark photon system.
+- Computes entanglement entropy evolution and mixing probabilities.
+- Provides full theoretical framework and numerical validation scripts.
+
+### 4. [QCIS – Quantum Cosmology Integration Suite](https://github.com/tlcagford/Quantum-Cosmology-Integration-Suite-QCIS-)
+*Quantum‑corrected cosmological perturbations*
+
+- Implements quantum‑corrected Mukhanov‑Sasaki equations.
+- Calculates matter and tensor power spectra with backreaction from quantum fields.
+- Validates against Planck 2018 data and provides Bayesian evidence tools.
 
 ---
 
-## 🐛 Bug Fixes
+## 🚀 Features at a Glance
 
-- **v25**: Fixed scale selection index error for presets with non-standard values (80, 120 kpc)
-- **v24**: Resolved presets ValueError with fallback to closest scale option
-- **v23**: Fixed image annotation rendering on Streamlit Cloud
-- **v22**: Corrected soliton profile division by zero error
-- **v21**: Updated SciPy imports for compatibility (simpson → simps)
-- **v20**: Fixed plotly import error, migrated to matplotlib
+| Project | Key Physics | Interactive | Input | Output |
+|---------|-------------|-------------|-------|--------|
+| **QCI AstroEntangle Refiner** | FDM soliton, PDP mixing | ✅ sliders | FITS / images | Annotated PNG, metadata |
+| **Magnetar QED Explorer** | Dipole field, dark photon conversion, Kerr | ✅ sliders, preloads | FITS / images | Plots, PNG exports |
+| **Primordial Entanglement** | von Neumann evolution, mixing | ✅ (via notebooks) | parameters | Evolution plots, matrices |
+| **QCIS** | Quantum‑corrected power spectra | ✅ (via scripts) | cosmological parameters | Power spectra, transfer functions |
 
 ---
 
-## 📦 Installation
+## 📥 Installation
+
+Each project can be installed separately, but they share a common set of dependencies.  
+To use the interactive apps, install the required packages and launch Streamlit:
 
 ```bash
+# Clone the desired repository
 git clone https://github.com/tlcagford/QCI_AstroEntangle_Refiner.git
 cd QCI_AstroEntangle_Refiner
+
+# Install dependencies (common for all apps)
 pip install -r requirements.txt
+
+# Run the Streamlit app
 streamlit run app.py
 ```
 
-### Requirements
-```txt
+The `requirements.txt` for each app typically includes:
+
+```
 streamlit>=1.28.0
 numpy>=1.24.0
 matplotlib>=3.7.0
@@ -123,67 +106,114 @@ scipy>=1.10.0
 astropy>=5.3.0
 scikit-image>=0.21.0
 Pillow>=10.0.0
+pandas>=2.0.0
+```
+
+For the **Primordial Entanglement** and **QCIS** libraries, you may need to run their Jupyter notebooks or Python scripts directly (no Streamlit UI).
+
+---
+
+## 📚 Physics References
+
+Each project is grounded in rigorous theoretical frameworks:
+
+- **FDM Soliton** – derived from the Schrödinger–Poisson system:
+  \[
+  \rho(r) \propto \left[\frac{\sin(kr)}{kr}\right]^2
+  \]
+- **Dark Photon Conversion** – kinetic mixing Lagrangian:
+  \[
+  \mathcal{L}_{\text{mix}} = \frac{\varepsilon}{2} F_{\mu\nu} F'^{\mu\nu}
+  \]
+- **Von Neumann Evolution** – density matrix evolution in an expanding universe:
+  \[
+  i\partial_t\rho = [H_{\text{eff}},\rho]
+  \]
+- **Quantum‑Corrected Power Spectrum**:
+  \[
+  P(k) = P_{\Lambda\text{CDM}}(k) \times \left(1 + f_{\text{NL}}\left(\frac{k}{k_0}\right)^{n_q}\right)
+  \]
+
+Full derivations and references are provided in the individual repositories.
+
+---
+
+## 🧪 Quick Start Examples
+
+### QCI AstroEntangle Refiner
+1. Launch the app: `streamlit run app.py`
+2. Select a preloaded example (Bullet Cluster, Abell 1689, …) or upload your own FITS/image.
+3. Adjust Ω (entanglement strength) and fringe scale.
+4. Download the annotated comparison and individual physics components.
+
+### Magnetar QED Explorer
+1. Launch the app.
+2. Use the preloaded examples or drag‑and‑drop an image.
+3. Explore the three magnetar physics tabs (Magnetic Field, Dark Photons, Kerr Spacetime).
+4. Export plots and processed images.
+
+### Primordial Entanglement (theoretical)
+```python
+from primordial_entanglement import solve_von_neumann
+mixing, entropy, t = solve_von_neumann(omega=0.7, m_dark=1e-9)
+```
+
+### QCIS (cosmological spectra)
+```python
+from qcis import qcis_power_spectrum
+k, P_quantum = qcis_power_spectrum(omega_m=0.3, omega_b=0.05, h=0.7, f_nl=1.0)
 ```
 
 ---
 
-## 🧪 Validation Results
+## 📄 Citation
 
-### Physics Validation
-- **Soliton Profile**: Matches analytic [sin(kr)/kr]² solution (R² > 0.95)
-- **Von Neumann Evolution**: Preserves unitarity and entropy bounds
-- **Interference Pattern**: Correct λ = h/(m v) scaling verified
-- **FDM Mass Range**: 10⁻²² - 10⁻²¹ eV (consistent with cosmological constraints)
-
-### Tested Datasets
-- **Bullet Cluster (1E0657-56)**: Successfully visualizes dark matter separation
-- **Abell 1689**: Shows prominent soliton core with strong lensing arcs
-- **Abell 209**: Balanced fringe visibility with substructure
-- **Abell 2218**: Giant arc reconstruction validated
-- **COSMOS Field**: Subtle quantum effects detected
-
----
-
-## 📚 Citation
-
-If you use this work in your research, please cite:
+If you use any of these projects in your research, please cite the respective repository and the author’s work:
 
 ```bibtex
 @software{Ford2025QCI,
-  title={QCI AstroEntangle Refiner: 
-         Photon-Dark Photon Entanglement with FDM Soliton Physics},
-  author={Ford, Tony E.},
-  url={https://github.com/tlcagford/QCI_AstroEntangle_Refiner},
-  year={2025},
-  version={v25}
+  author = {Ford, Tony E.},
+  title = {QCI AstroEntangle Refiner},
+  year = {2025},
+  url = {https://github.com/tlcagford/QCI_AstroEntangle_Refiner}
 }
 
-@article{Ford2025Primordial,
-  title={Primordial Photon-Dark Photon Entanglement: 
-         A Framework for Quantum Dark Matter Detection},
-  author={Ford, Tony E.},
-  journal={arXiv preprint arXiv:2503.12345},
-  year={2025}
+@software{Ford2025Magnetar,
+  author = {Ford, Tony E.},
+  title = {Magnetar QED Explorer},
+  year = {2025},
+  url = {https://github.com/tlcagford/Magnetar-Quantum-Vacuum-Engineering-for-Extreme-Astrophysical-Environments-}
+}
+
+@software{Ford2025Primordial,
+  author = {Ford, Tony E.},
+  title = {Primordial Photon–DarkPhoton Entanglement},
+  year = {2025},
+  url = {https://github.com/tlcagford/Primordial-Photon-DarkPhoton-Entanglement}
+}
+
+@software{Ford2025QCIS,
+  author = {Ford, Tony E.},
+  title = {QCIS – Quantum Cosmology Integration Suite},
+  year = {2025},
+  url = {https://github.com/tlcagford/Quantum-Cosmology-Integration-Suite-QCIS-}
 }
 ```
 
 ---
 
-## 📄 License
+## 📜 License
 
-**Dual License Model**:
-- **Academic/Non-Commercial**: Free for research, teaching, personal projects
-- **Commercial**: Required for for-profit use (contact tlcagford@gmail.com)
+All four projects are released under a **Dual License**:
 
----
+- **Academic / Non‑Commercial Use:** Free for research, education, and personal projects.
+- **Commercial Use:** Requires a separate license. Please contact the author for details.
 
-## 🤝 Contributors
-
-- **Tony E. Ford** - Primary author, physics implementation, UI development
+See the `LICENSE` file in each repository for full terms.
 
 ---
 
-## 📞 Contact
+## 📧 Contact
 
 **Tony E. Ford**  
 Independent Researcher / Astrophysics & Quantum Systems  
@@ -192,26 +222,20 @@ GitHub: [@tlcagford](https://github.com/tlcagford)
 
 ---
 
-## 🔭 Roadmap
+## 🙏 Acknowledgments
 
-### Planned for v26
-- [ ] GPU acceleration for large FITS files
-- [ ] Real-time parameter optimization using Bayesian inference
-- [ ] Integration with CLASS/CAMB for cosmological parameter constraints
-- [ ] JWST NIRCam/MIRI specific optimizations
-- [ ] Multi-cluster batch processing
-- [ ] Interactive radial profile fitting
+- NASA/ESA Hubble Space Telescope & JWST for public FITS data.
+- The FDM, QED, and cosmology communities for foundational research.
+- Streamlit, NumPy, SciPy, Matplotlib, and all other open‑source libraries that made these tools possible.
 
 ---
 
-**Version**: v25 Final Production Release  
-**Date**: March 25, 2026  
-**Status**: Stable | Production-Ready | Fully Documented
+*“Exploring the quantum nature of the universe – from the first moments to the most extreme objects.”*
 
----
+The application is deployed on Streamlit Cloud:
 
-*"Exploring the quantum nature of dark matter through photon-dark photon entanglement"*
-```
-- Roadmap for future development
+[**[https://qciastroentanglerefiner-awpyvm8ydzyyqu4qfwysze.streamlit.app/**
+](https://qciastroentanglerefiner-awpyvm8ydzyyqu4qfwysze.streamlit.app/)
+## 📸 Live Demo
 
-You can save this as `RELEASE_NOTES.md` in your repository!
+The application is deployed on Streamlit Cloud:

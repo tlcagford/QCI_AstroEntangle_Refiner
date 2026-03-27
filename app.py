@@ -252,22 +252,23 @@ with st.sidebar:
     pixel_scale_kpc = st.number_input("kpc/pixel", value=pixel_scale_kpc, format="%.4f")
 
 # ============================================================================
-# MAIN CONTENT
+# MAIN CONTENT - CREATE TABS
 # ============================================================================
 
 st.title("🌌 Quantum Cosmology & Astrophysics Unified Suite")
 st.markdown("*Full-spectrum mapping of invisible quantum fields*")
 
-# ============================================================================
-# TAB 1: FULL-SPECTRUM QUANTUM FIELDS
-# ============================================================================
-
+# Create tabs
 tab1, tab2, tab3, tab4 = st.tabs([
     "🌈 Full-Spectrum Quantum Fields",
     "⚡ Magnetar QED Explorer",
     "🌀 Primordial Entanglement",
     "📊 QCIS Power Spectra"
 ])
+
+# ============================================================================
+# TAB 1: FULL-SPECTRUM QUANTUM FIELDS
+# ============================================================================
 
 with tab1:
     st.header("🌈 Full-Spectrum Quantum Field Visualization")

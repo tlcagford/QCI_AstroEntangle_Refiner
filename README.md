@@ -1,10 +1,4 @@
-I'll create a comprehensive README for your QCAUS (Quantum Cosmology & Astrophysics Unified Suite) project that documents all your formulas and features.
 
----
-
-## README.md for QCAUS
-
-```markdown
 # 🌌 Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://quantum-cosmology-astrophysics-unified-suite.streamlit.app/)

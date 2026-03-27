@@ -1,6 +1,6 @@
 """
 Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
-Complete verified version - all calculations correct
+Complete corrected version - shows images in comparison, not metadata
 """
 
 import streamlit as st
@@ -97,13 +97,14 @@ def process_qci_astro(image_data, omega=0.5, fringe=1.0, soliton_scale=1.0):
     return enhanced, soliton_resized, pdp
 
 def add_scale_bar(ax, image_width_pixels, physical_width_kpc=100, pixel_scale_kpc=0.1):
+    """Add scale bar to image at bottom left"""
     bar_length_pixels = physical_width_kpc / pixel_scale_kpc
     x_start = 50
-    y_start = image_width_pixels - 80
+    y_start = image_width_pixels - 60
     rect = Rectangle((x_start, y_start), bar_length_pixels, 8,
                      linewidth=2, edgecolor='white', facecolor='white', alpha=0.8)
     ax.add_patch(rect)
-    ax.text(x_start + bar_length_pixels/2, y_start - 15, f"{physical_width_kpc} kpc",
+    ax.text(x_start + bar_length_pixels/2, y_start - 12, f"{physical_width_kpc} kpc",
             color='white', fontsize=10, ha='center', weight='bold',
             bbox=dict(boxstyle='round', facecolor='black', alpha=0.6))
 
@@ -331,7 +332,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ============================================================================
-# TAB 1: QCI ASTROENTANGLE
+# TAB 1: QCI ASTROENTANGLE - FIXED COMPARISON
 # ============================================================================
 
 with tab1:
@@ -363,21 +364,24 @@ with tab1:
             st.markdown("---")
             st.subheader("📥 Download")
             
-            # Side-by-side comparison
-            fig_comp, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+            # ========== FIXED: SIDE-BY-SIDE COMPARISON WITH IMAGES ==========
+            fig_comp, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+            
+            # LEFT: Original image
             ax1.imshow(astro_image, cmap='gray', origin='upper')
-            ax1.set_title("Original")
+            ax1.set_title("Original Image\n(No Overlays)", fontsize=12)
             ax1.axis('off')
             add_scale_bar(ax1, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
             
+            # RIGHT: Enhanced image with overlays
             ax2.imshow(enhanced, cmap='gray', origin='upper')
-            ax2.set_title("FDM + PDP Enhanced")
+            ax2.set_title("Enhanced: FDM Soliton + PDP Entanglement\n(Quantum Overlays Applied)", fontsize=12)
             ax2.axis('off')
             add_scale_bar(ax2, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
             
             plt.tight_layout()
             st.pyplot(fig_comp)
-            st.markdown(get_image_download_link(fig_comp, f"{base_filename}_comparison.png", "📸 Download Side-by-Side"), unsafe_allow_html=True)
+            st.markdown(get_image_download_link(fig_comp, f"{base_filename}_comparison.png", "📸 Download Side-by-Side Comparison"), unsafe_allow_html=True)
             plt.close(fig_comp)
     
     with col2:
@@ -677,6 +681,6 @@ with st.expander("📖 About QCAUS", expanded=False):
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #888;">
-    <b>QCAUS</b> | All Formulas Verified | © 2026 Tony E. Ford
+    <b>QCAUS</b> | All Formulas Verified | Comparison Shows Images, Not Metadata | © 2026 Tony E. Ford
 </div>
 """, unsafe_allow_html=True)

@@ -1,6 +1,6 @@
 """
 Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
-Complete version with unique element IDs for all widgets
+Fixed: Text orientation, color map selection, and improved display
 """
 
 import streamlit as st
@@ -74,15 +74,36 @@ def process_qci_astro(image_data, omega=0.5, fringe=1.0, soliton_scale=1.0):
     return enhanced, soliton_resized, pdp
 
 def add_scale_bar(ax, image_width_pixels, physical_width_kpc=100, pixel_scale_kpc=0.1):
+    """Add scale bar to image (correct orientation)"""
     bar_length_pixels = physical_width_kpc / pixel_scale_kpc
-    x_start = image_width_pixels - bar_length_pixels - 50
-    y_start = 50
+    # Position at bottom left (not bottom right to avoid text issues)
+    x_start = 50
+    y_start = image_width_pixels - 80  # Position near bottom
     rect = Rectangle((x_start, y_start), bar_length_pixels, 8,
                      linewidth=2, edgecolor='white', facecolor='white', alpha=0.8)
     ax.add_patch(rect)
-    ax.text(x_start + bar_length_pixels/2, y_start + 25, f"{physical_width_kpc} kpc",
+    ax.text(x_start + bar_length_pixels/2, y_start - 15, f"{physical_width_kpc} kpc",
             color='white', fontsize=10, ha='center', weight='bold',
             bbox=dict(boxstyle='round', facecolor='black', alpha=0.6))
+
+# ============================================================================
+# COLOR MAP OPTIONS
+# ============================================================================
+
+COLOR_MAPS = {
+    "Plasma": "plasma",
+    "Viridis": "viridis",
+    "Inferno": "inferno",
+    "Magma": "magma",
+    "Hot": "hot",
+    "Coolwarm": "coolwarm",
+    "RdBu": "RdBu_r",
+    "Seismic": "seismic",
+    "Greens": "Greens",
+    "Blues": "Blues",
+    "Reds": "Reds",
+    "Purples": "Purples"
+}
 
 # ============================================================================
 # PROJECT 2: MAGNETAR QED EXPLORER
@@ -265,6 +286,10 @@ with st.sidebar:
     st.markdown("Quantum Cosmology & Astrophysics Unified Suite")
     st.markdown("*FDM Soliton • PDP Entanglement • Magnetar QED • QCIS*")
     
+    st.header("🎨 Color Settings")
+    selected_cmap = st.selectbox("Color Map", list(COLOR_MAPS.keys()), index=0, key="cmap_select")
+    cmap_value = COLOR_MAPS[selected_cmap]
+    
     st.header("🖼️ Image Input")
     image_source = st.radio("Image Source", ["Sample", "Upload File"], key="img_source")
     
@@ -306,7 +331,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ============================================================================
-# TAB 1: QCI ASTROENTANGLE
+# TAB 1: QCI ASTROENTANGLE (with color options and correct orientation)
 # ============================================================================
 
 with tab1:
@@ -319,6 +344,12 @@ with tab1:
         omega1 = st.slider("Ω (Entanglement Strength)", 0.0, 1.0, 0.5, 0.01, key="omega_tab1")
         fringe1 = st.slider("Fringe Scale", 0.1, 3.0, 1.0, 0.1, key="fringe_tab1")
         soliton_scale1 = st.slider("FDM Soliton Scale (k)", 0.5, 3.0, 1.0, 0.1, key="soliton_tab1")
+        
+        # Color options for overlays
+        st.markdown("---")
+        st.subheader("🎨 Overlay Colors")
+        fdm_cmap = st.selectbox("FDM Soliton Color", list(COLOR_MAPS.keys()), index=0, key="fdm_cmap")
+        pdp_cmap = st.selectbox("PDP Entanglement Color", list(COLOR_MAPS.keys()), index=1, key="pdp_cmap")
         
         if astro_image is not None:
             enhanced, soliton, pdp = process_qci_astro(astro_image, omega1, fringe1, soliton_scale1)
@@ -336,13 +367,14 @@ with tab1:
             st.markdown("---")
             st.subheader("📥 Download")
             
+            # Comparison with correct orientation (origin='upper')
             fig_comp, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-            ax1.imshow(astro_image, cmap='gray', origin='lower')
+            ax1.imshow(astro_image, cmap='gray', origin='upper')
             ax1.set_title("Original")
             ax1.axis('off')
             add_scale_bar(ax1, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
             
-            ax2.imshow(enhanced, cmap='gray', origin='lower')
+            ax2.imshow(enhanced, cmap='gray', origin='upper')
             ax2.set_title("FDM + PDP Enhanced")
             ax2.axis('off')
             add_scale_bar(ax2, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
@@ -356,22 +388,48 @@ with tab1:
         if astro_image is not None:
             enhanced, soliton, pdp = process_qci_astro(astro_image, omega1, fringe1, soliton_scale1)
             
+            # Radar-style overlay with correct orientation
             fig_rgb, ax_rgb = plt.subplots(figsize=(8, 8))
             rgb = np.zeros((*astro_image.shape, 3))
             rgb[..., 0] = astro_image / (astro_image.max() + 1e-8)
-            rgb[..., 1] = (soliton - soliton.min()) / (soliton.max() - soliton.min() + 1e-8) * 0.8
-            rgb[..., 2] = (pdp - pdp.min()) / (pdp.max() - pdp.min() + 1e-8) * 0.8
-            ax_rgb.imshow(np.clip(rgb, 0, 1), origin='lower')
+            soliton_norm = (soliton - soliton.min()) / (soliton.max() - soliton.min() + 1e-8)
+            pdp_norm = (pdp - pdp.min()) / (pdp.max() - pdp.min() + 1e-8)
+            rgb[..., 1] = soliton_norm * 0.8
+            rgb[..., 2] = pdp_norm * 0.8
+            ax_rgb.imshow(np.clip(rgb, 0, 1), origin='upper')
             ax_rgb.set_title("Radar-Style Overlay\nGreen: FDM | Blue: PDP")
             ax_rgb.axis('off')
             add_scale_bar(ax_rgb, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
             st.pyplot(fig_rgb)
+            
+            # Download button for radar style
+            st.markdown(get_image_download_link(fig_rgb, f"{base_filename}_radar_style.png", "📡 Download Radar Style"), unsafe_allow_html=True)
             plt.close(fig_rgb)
+            
+            # FDM Soliton overlay with selected color map
+            fig_fdm, ax_fdm = plt.subplots(figsize=(6, 6))
+            ax_fdm.imshow(soliton, cmap=COLOR_MAPS[fdm_cmap], origin='upper')
+            ax_fdm.set_title(f"FDM Soliton (k={soliton_scale1:.2f})\nColor: {fdm_cmap}")
+            ax_fdm.axis('off')
+            add_scale_bar(ax_fdm, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
+            st.pyplot(fig_fdm)
+            st.markdown(get_image_download_link(fig_fdm, f"{base_filename}_fdm.png", "🌌 Download FDM Soliton"), unsafe_allow_html=True)
+            plt.close(fig_fdm)
+            
+            # PDP Entanglement overlay with selected color map
+            fig_pdp, ax_pdp = plt.subplots(figsize=(6, 6))
+            ax_pdp.imshow(pdp, cmap=COLOR_MAPS[pdp_cmap], origin='upper')
+            ax_pdp.set_title(f"PDP Entanglement (Ω={omega1:.2f})\nColor: {pdp_cmap}")
+            ax_pdp.axis('off')
+            add_scale_bar(ax_pdp, astro_image.shape[1], pixel_scale_kpc=pixel_scale_kpc)
+            st.pyplot(fig_pdp)
+            st.markdown(get_image_download_link(fig_pdp, f"{base_filename}_pdp.png", "🌀 Download PDP Entanglement"), unsafe_allow_html=True)
+            plt.close(fig_pdp)
         else:
             st.info("👈 Select or upload an image")
 
 # ============================================================================
-# TAB 2: MAGNETAR QED EXPLORER
+# TAB 2: MAGNETAR QED EXPLORER (with color options)
 # ============================================================================
 
 with tab2:
@@ -384,6 +442,13 @@ with tab2:
         B0 = st.slider("Surface B-Field (10¹⁵ G)", 0.5, 5.0, 1.0, 0.1, key="B0_tab2")
         mixing_angle2 = st.slider("Dark Photon Mixing ε", 0.0, 0.5, 0.1, 0.01, key="mixing_tab2")
         dark_mass2 = st.slider("Dark Photon Mass (eV)", 1e-12, 1e-6, 1e-9, format="%.1e", key="darkmass_tab2")
+        
+        # Color options for magnetar plots
+        st.markdown("---")
+        st.subheader("🎨 Color Options")
+        bfield_cmap = st.selectbox("B-Field Color", list(COLOR_MAPS.keys()), index=3, key="bfield_cmap")
+        qed_cmap = st.selectbox("QED Polarization Color", list(COLOR_MAPS.keys()), index=1, key="qed_cmap")
+        dark_cmap = st.selectbox("Dark Photons Color", list(COLOR_MAPS.keys()), index=2, key="dark_cmap")
         
         r = np.linspace(1, 10, 200)
         theta = np.linspace(0, np.pi, 200)
@@ -404,7 +469,7 @@ with tab2:
         st.subheader("📥 Download")
         
         fig_b, ax_b = plt.subplots(figsize=(6, 4))
-        ax_b.imshow(B_mag, extent=[1, 10, 0, 180], aspect='auto', cmap='hot')
+        ax_b.imshow(B_mag, extent=[1, 10, 0, 180], aspect='auto', cmap=COLOR_MAPS[bfield_cmap], origin='upper')
         ax_b.set_title(f"Magnetic Field\n{B0:.1f}×10¹⁵ G")
         plt.colorbar(ax_b.images[0], ax=ax_b)
         st.markdown(get_image_download_link(fig_b, f"{base_filename}_bfield.png", "🔴 Download"), unsafe_allow_html=True)
@@ -413,18 +478,18 @@ with tab2:
     with col2:
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
         
-        im1 = axes[0].imshow(B_mag, extent=[1, 10, 0, 180], aspect='auto', cmap='hot')
+        im1 = axes[0].imshow(B_mag, extent=[1, 10, 0, 180], aspect='auto', cmap=COLOR_MAPS[bfield_cmap], origin='upper')
         axes[0].set_title(f"B-Field\n{B0:.1f}×10¹⁵ G")
         axes[0].set_xlabel("Radius (R/R₀)")
         axes[0].set_ylabel("Angle (deg)")
         plt.colorbar(im1, ax=axes[0])
         
-        im2 = axes[1].imshow(qed, extent=[1, 10, 0, 180], aspect='auto', cmap='plasma')
+        im2 = axes[1].imshow(qed, extent=[1, 10, 0, 180], aspect='auto', cmap=COLOR_MAPS[qed_cmap], origin='upper')
         axes[1].set_title("Vacuum Polarization\nEuler-Heisenberg")
         axes[1].set_xlabel("Radius (R/R₀)")
         plt.colorbar(im2, ax=axes[1])
         
-        im3 = axes[2].imshow(dark_photons, extent=[1, 10, 0, 180], aspect='auto', cmap='viridis')
+        im3 = axes[2].imshow(dark_photons, extent=[1, 10, 0, 180], aspect='auto', cmap=COLOR_MAPS[dark_cmap], origin='upper')
         axes[2].set_title(f"Dark Photons\nε={mixing_angle2:.2f}, m={dark_mass2:.1e}eV")
         axes[2].set_xlabel("Radius (R/R₀)")
         plt.colorbar(im3, ax=axes[2])
@@ -435,7 +500,7 @@ with tab2:
         plt.close(fig)
 
 # ============================================================================
-# TAB 3: PRIMORDIAL ENTANGLEMENT (FIXED DUPLICATE KEYS)
+# TAB 3: PRIMORDIAL ENTANGLEMENT
 # ============================================================================
 
 with tab3:
@@ -544,7 +609,7 @@ with tab4:
         plt.close(fig)
 
 # ============================================================================
-# TAB 5: SPECTRAL ANALYSIS
+# TAB 5: SPECTRAL ANALYSIS (with color options)
 # ============================================================================
 
 with tab5:
@@ -555,6 +620,9 @@ with tab5:
     col1, col2 = st.columns([1, 2])
     
     with col1:
+        # Color options for pattern
+        pattern_cmap = st.selectbox("Pattern Color Map", list(COLOR_MAPS.keys()), index=0, key="pattern_cmap")
+        
         if pattern_type == "FDM Soliton":
             k_val = st.slider("k (Soliton Scale)", 0.5, 3.0, 1.0, 0.05, key="k_tab5")
             pattern = generate_fdm_pattern(size=512, k_val=k_val)
@@ -579,14 +647,14 @@ with tab5:
         st.subheader("📥 Download")
         
         fig_pat, ax_pat = plt.subplots(figsize=(6, 6))
-        ax_pat.imshow(pattern, cmap='plasma', origin='lower')
+        ax_pat.imshow(pattern, cmap=COLOR_MAPS[pattern_cmap], origin='upper')
         ax_pat.axis('off')
         st.markdown(get_image_download_link(fig_pat, f"{base_filename}_pattern.png", "📥 Download"), unsafe_allow_html=True)
         plt.close(fig_pat)
     
     with col2:
         fig, ax = plt.subplots(figsize=(8, 8))
-        ax.imshow(pattern, cmap='plasma', origin='lower')
+        ax.imshow(pattern, cmap=COLOR_MAPS[pattern_cmap], origin='upper')
         ax.set_title(title)
         ax.axis('off')
         st.pyplot(fig)
@@ -602,7 +670,7 @@ with tab5:
     
     with col_a:
         fig_ps, ax_ps = plt.subplots(figsize=(6, 6))
-        ax_ps.imshow(np.log(power_spec + 1), cmap='hot', origin='lower')
+        ax_ps.imshow(np.log(power_spec + 1), cmap='hot', origin='upper')
         ax_ps.set_title("Power Spectrum (log scale)")
         ax_ps.axis('off')
         st.pyplot(fig_ps)
@@ -637,6 +705,8 @@ with st.expander("📖 About QCAUS", expanded=False):
     | **Magnetar QED** | B = B₀ (R/r)³ (2 cosθ, sinθ), Euler-Heisenberg | Magnetar fields, vacuum polarization, dark photons |
     | **Primordial Entanglement** | i∂ρ/∂t = [H, ρ], S = -Tr(ρ log ρ) | Photon-dark photon entanglement evolution |
     | **QCIS** | P(k) = P_ΛCDM(k) × (1 + f_NL (k/k₀)^n_q) | Quantum-corrected power spectra |
+    
+    **🎨 Color Maps Available:** Plasma, Viridis, Inferno, Magma, Hot, Coolwarm, RdBu, Seismic, Greens, Blues, Reds, Purples
     
     **Supported Formats:** FITS, JPEG, PNG
     """)

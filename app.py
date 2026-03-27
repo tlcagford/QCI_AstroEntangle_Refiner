@@ -1,5 +1,3 @@
-The error is at line 1 - this means the file might have been corrupted or there's an invisible character. Let me provide a **clean, fresh version** that you can copy and paste directly:
-
 ```python
 import streamlit as st
 import numpy as np
@@ -476,5 +474,3 @@ with st.expander("📖 About", expanded=False):
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #888;'>© 2026 Tony E. Ford</div>", unsafe_allow_html=True)
 ```
-
-This is a clean, simplified version that should run without errors. Copy and paste this entire file into your `app.py`!

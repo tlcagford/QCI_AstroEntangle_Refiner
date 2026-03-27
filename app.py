@@ -1,11 +1,6 @@
 """
 Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
-Complete version with all 5 tabs fully functional
-- QCI AstroEntangle (FDM Soliton + PDP)
-- Magnetar QED Explorer (Vacuum Polarization + Dark Photons)
-- Primordial Entanglement (Von Neumann Evolution)
-- QCIS Power Spectra (Quantum-Corrected Cosmology)
-- Spectral & Color Analysis
+Complete version with unique element IDs for all widgets
 """
 
 import streamlit as st
@@ -49,14 +44,12 @@ def get_json_download_link(data, filename, title="Download"):
 # ============================================================================
 
 def fdm_soliton_profile(r, k=1.0):
-    """Fuzzy Dark Matter soliton: ρ(r) = ρ₀ [sin(kr)/(kr)]²"""
     kr = k * r
     with np.errstate(divide='ignore', invalid='ignore'):
         profile = np.where(kr > 0, (np.sin(kr) / kr)**2, 1.0)
     return profile
 
 def pdp_entanglement_overlay(image_data, omega=0.5, fringe_scale=1.0):
-    """Photon-DarkPhoton entanglement filter"""
     fft_img = fft2(image_data)
     fft_shift = fftshift(fft_img)
     rows, cols = image_data.shape
@@ -92,29 +85,25 @@ def add_scale_bar(ax, image_width_pixels, physical_width_kpc=100, pixel_scale_kp
             bbox=dict(boxstyle='round', facecolor='black', alpha=0.6))
 
 # ============================================================================
-# PROJECT 2: MAGNETAR QED EXPLORER (Vacuum Polarization + Dark Photons)
+# PROJECT 2: MAGNETAR QED EXPLORER
 # ============================================================================
 
 def magnetar_dipole_field(r, theta, B0=1e15):
-    """Magnetar dipole field: B = B₀ (R/r)³ (2 cosθ, sinθ)"""
     B_r = B0 * 2 * np.cos(theta) / (r**3 + 1e-10)
     B_theta = B0 * np.sin(theta) / (r**3 + 1e-10)
     return B_r, B_theta
 
 def quantum_vacuum_polarization(B, alpha=1/137):
-    """Euler-Heisenberg vacuum polarization"""
-    B_crit = 4.41e13  # Critical magnetic field (Schwinger limit)
+    B_crit = 4.41e13
     beta = (B / B_crit)**2
     polarization = alpha * beta / (45 * np.pi) * (1 + 7/4 * beta)
     return polarization
 
 def dark_photon_conversion(B, mixing_angle=0.1, mass=1e-9):
-    """Dark photon conversion probability: P = ε² (1 - e^{-B²/m²})"""
     conversion_prob = mixing_angle**2 * (1 - np.exp(-B**2 / mass**2))
     return conversion_prob
 
 def process_magnetar(r_grid, theta_grid, B0=1e15, mixing=0.1, mass=1e-9):
-    """Complete magnetar field processing with vacuum polarization and dark photons"""
     B_r, B_theta = magnetar_dipole_field(r_grid, theta_grid, B0)
     B_mag = np.sqrt(B_r**2 + B_theta**2)
     qed = quantum_vacuum_polarization(B_mag)
@@ -126,20 +115,17 @@ def process_magnetar(r_grid, theta_grid, B0=1e15, mixing=0.1, mass=1e-9):
 # ============================================================================
 
 def von_neumann_evolution(density_matrix, hamiltonian, dt):
-    """i∂ρ/∂t = [H, ρ]"""
     commutator = np.dot(hamiltonian, density_matrix) - np.dot(density_matrix, hamiltonian)
     return density_matrix + (-1j * commutator) * dt
 
 def entanglement_entropy(reduced_density):
-    """S = -Tr(ρ log ρ)"""
     eigenvalues = np.linalg.eigvalsh(reduced_density)
     eigenvalues = eigenvalues[eigenvalues > 1e-10]
     return -np.sum(eigenvalues * np.log(eigenvalues))
 
-def process_primordial_entanglement(omega=0.7, dark_mass=1e-9, mixing=0.1, t_steps=100):
-    """Photon-dark photon entanglement evolution"""
+def process_primordial_entanglement(omega_val=0.7, dark_mass_val=1e-9, mixing_val=0.1, t_steps=100):
     rho = np.array([[0.5, 0.1], [0.1, 0.5]], dtype=complex)
-    H = np.array([[omega, mixing], [mixing, dark_mass]], dtype=complex)
+    H = np.array([[omega_val, mixing_val], [mixing_val, dark_mass_val]], dtype=complex)
     dt = 0.01
     entropy_evolution = []
     mixing_prob = []
@@ -154,14 +140,13 @@ def process_primordial_entanglement(omega=0.7, dark_mass=1e-9, mixing=0.1, t_ste
 # PROJECT 4: QCIS POWER SPECTRA
 # ============================================================================
 
-def quantum_corrected_power_spectrum(k, f_nl=1.0, n_q=0.5, k0=0.05):
-    """P(k) = P_ΛCDM(k) × (1 + f_NL (k/k₀)^n_q)"""
+def quantum_corrected_power_spectrum(k, f_nl_val=1.0, n_q_val=0.5, k0=0.05):
     P_lcdm = k ** (-3) * np.exp(-k / 0.1)
-    quantum_correction = 1 + f_nl * (k / k0)**n_q
+    quantum_correction = 1 + f_nl_val * (k / k0)**n_q_val
     return P_lcdm * quantum_correction
 
-def process_qcis(k_vals, f_nl=1.0, n_q=0.5):
-    return quantum_corrected_power_spectrum(k_vals, f_nl, n_q)
+def process_qcis(k_vals, f_nl_val=1.0, n_q_val=0.5):
+    return quantum_corrected_power_spectrum(k_vals, f_nl_val, n_q_val)
 
 # ============================================================================
 # PROJECT 5: SPECTRAL ANALYSIS
@@ -186,21 +171,21 @@ def compute_radial_profile(power_spectrum):
             radial_profile[i] = np.mean(power_spectrum[mask])
     return bins[:-1], radial_profile
 
-def generate_fdm_pattern(size=256, k=1.0):
+def generate_fdm_pattern(size=256, k_val=1.0):
     x = np.linspace(-3, 3, size)
     y = np.linspace(-3, 3, size)
     X, Y = np.meshgrid(x, y)
     r = np.sqrt(X**2 + Y**2)
     with np.errstate(divide='ignore', invalid='ignore'):
-        pattern = np.where(r > 0, (np.sin(k * r) / (k * r))**2, 1.0)
+        pattern = np.where(r > 0, (np.sin(k_val * r) / (k_val * r))**2, 1.0)
     return pattern / pattern.max()
 
-def generate_pdp_pattern(size=256, omega=0.5, fringe=1.0):
+def generate_pdp_pattern(size=256, omega_val=0.5, fringe_val=1.0):
     x = np.linspace(-2, 2, size)
     y = np.linspace(-2, 2, size)
     X, Y = np.meshgrid(x, y)
     R = np.sqrt(X**2 + Y**2)
-    pattern = np.exp(-omega * R**2) * (1 - np.exp(-R**2 / fringe)) * np.sin(10 * R)
+    pattern = np.exp(-omega_val * R**2) * (1 - np.exp(-R**2 / fringe_val)) * np.sin(10 * R)
     pattern = pattern - pattern.min()
     pattern = pattern / pattern.max()
     return pattern
@@ -281,18 +266,18 @@ with st.sidebar:
     st.markdown("*FDM Soliton • PDP Entanglement • Magnetar QED • QCIS*")
     
     st.header("🖼️ Image Input")
-    image_source = st.radio("Image Source", ["Sample", "Upload File"])
+    image_source = st.radio("Image Source", ["Sample", "Upload File"], key="img_source")
     
     astro_image = None
     image_name = "galaxy_cluster"
     pixel_scale_kpc = 0.1
     
     if image_source == "Sample":
-        image_type = st.selectbox("Sample Image", ["Galaxy Cluster", "Bullet Cluster", "Magnetar"])
+        image_type = st.selectbox("Sample Image", ["Galaxy Cluster", "Bullet Cluster", "Magnetar"], key="sample_img_type")
         astro_image = get_sample_image(image_type)
         image_name = image_type.replace(" ", "_").lower()
     else:
-        uploaded_img = st.file_uploader("Upload Image", type=['fits', 'jpg', 'png'])
+        uploaded_img = st.file_uploader("Upload Image", type=['fits', 'jpg', 'png'], key="img_upload")
         if uploaded_img:
             astro_image, info = load_image_file(uploaded_img)
             if astro_image is None:
@@ -303,7 +288,7 @@ with st.sidebar:
                 pixel_scale_kpc = 100.0 / astro_image.shape[1]
     
     st.header("📏 Scale")
-    pixel_scale_kpc = st.number_input("kpc/pixel", value=pixel_scale_kpc, format="%.4f")
+    pixel_scale_kpc = st.number_input("kpc/pixel", value=pixel_scale_kpc, format="%.4f", key="scale_input")
 
 # ============================================================================
 # MAIN CONTENT - 5 TABS
@@ -331,22 +316,22 @@ with tab1:
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        omega = st.slider("Ω (Entanglement Strength)", 0.0, 1.0, 0.5, 0.01)
-        fringe = st.slider("Fringe Scale", 0.1, 3.0, 1.0, 0.1)
-        soliton_scale = st.slider("FDM Soliton Scale (k)", 0.5, 3.0, 1.0, 0.1)
+        omega1 = st.slider("Ω (Entanglement Strength)", 0.0, 1.0, 0.5, 0.01, key="omega_tab1")
+        fringe1 = st.slider("Fringe Scale", 0.1, 3.0, 1.0, 0.1, key="fringe_tab1")
+        soliton_scale1 = st.slider("FDM Soliton Scale (k)", 0.5, 3.0, 1.0, 0.1, key="soliton_tab1")
         
         if astro_image is not None:
-            enhanced, soliton, pdp = process_qci_astro(astro_image, omega, fringe, soliton_scale)
+            enhanced, soliton, pdp = process_qci_astro(astro_image, omega1, fringe1, soliton_scale1)
             
             st.markdown("---")
             st.subheader("📊 Metrics")
             col_m1, col_m2, col_m3 = st.columns(3)
             col_m1.metric("Max Mixing", f"{np.max(pdp):.3f}")
             col_m2.metric("Min Entropy", f"{np.min(soliton):.3f}")
-            col_m3.metric("FDM Value", f"{soliton_scale * 2.5:.1f} kpc")
+            col_m3.metric("FDM Value", f"{soliton_scale1 * 2.5:.1f} kpc")
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base_filename = f"qcaus_{image_name}_omega{omega:.2f}_{timestamp}"
+            base_filename = f"qcaus_{image_name}_omega{omega1:.2f}_{timestamp}"
             
             st.markdown("---")
             st.subheader("📥 Download")
@@ -369,7 +354,7 @@ with tab1:
     
     with col2:
         if astro_image is not None:
-            enhanced, soliton, pdp = process_qci_astro(astro_image, omega, fringe, soliton_scale)
+            enhanced, soliton, pdp = process_qci_astro(astro_image, omega1, fringe1, soliton_scale1)
             
             fig_rgb, ax_rgb = plt.subplots(figsize=(8, 8))
             rgb = np.zeros((*astro_image.shape, 3))
@@ -386,7 +371,7 @@ with tab1:
             st.info("👈 Select or upload an image")
 
 # ============================================================================
-# TAB 2: MAGNETAR QED EXPLORER (Vacuum Polarization + Dark Photons)
+# TAB 2: MAGNETAR QED EXPLORER
 # ============================================================================
 
 with tab2:
@@ -396,17 +381,17 @@ with tab2:
     col1, col2 = st.columns(2)
     
     with col1:
-        B0 = st.slider("Surface B-Field (10¹⁵ G)", 0.5, 5.0, 1.0, 0.1)
-        mixing_angle = st.slider("Dark Photon Mixing ε", 0.0, 0.5, 0.1, 0.01)
-        dark_mass = st.slider("Dark Photon Mass (eV)", 1e-12, 1e-6, 1e-9, format="%.1e")
+        B0 = st.slider("Surface B-Field (10¹⁵ G)", 0.5, 5.0, 1.0, 0.1, key="B0_tab2")
+        mixing_angle2 = st.slider("Dark Photon Mixing ε", 0.0, 0.5, 0.1, 0.01, key="mixing_tab2")
+        dark_mass2 = st.slider("Dark Photon Mass (eV)", 1e-12, 1e-6, 1e-9, format="%.1e", key="darkmass_tab2")
         
         r = np.linspace(1, 10, 200)
         theta = np.linspace(0, np.pi, 200)
         R, Theta = np.meshgrid(r, theta)
-        B_mag, qed, dark_photons = process_magnetar(R, Theta, B0=B0*1e15, mixing=mixing_angle, mass=dark_mass)
+        B_mag, qed, dark_photons = process_magnetar(R, Theta, B0=B0*1e15, mixing=mixing_angle2, mass=dark_mass2)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_filename = f"qcaus_magnetar_B{B0:.1f}_eps{mixing_angle:.2f}_{timestamp}"
+        base_filename = f"qcaus_magnetar_B{B0:.1f}_eps{mixing_angle2:.2f}_{timestamp}"
         
         st.markdown("---")
         st.subheader("📊 Physics Metrics")
@@ -426,7 +411,6 @@ with tab2:
         plt.close(fig_b)
     
     with col2:
-        st.subheader("Magnetar Field Visualization")
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
         
         im1 = axes[0].imshow(B_mag, extent=[1, 10, 0, 180], aspect='auto', cmap='hot')
@@ -441,7 +425,7 @@ with tab2:
         plt.colorbar(im2, ax=axes[1])
         
         im3 = axes[2].imshow(dark_photons, extent=[1, 10, 0, 180], aspect='auto', cmap='viridis')
-        axes[2].set_title(f"Dark Photons\nε={mixing_angle:.2f}, m={dark_mass:.1e}eV")
+        axes[2].set_title(f"Dark Photons\nε={mixing_angle2:.2f}, m={dark_mass2:.1e}eV")
         axes[2].set_xlabel("Radius (R/R₀)")
         plt.colorbar(im3, ax=axes[2])
         
@@ -449,11 +433,9 @@ with tab2:
         st.pyplot(fig)
         st.markdown(get_image_download_link(fig, f"{base_filename}_magnetar.png", "📸 Download"), unsafe_allow_html=True)
         plt.close(fig)
-        
-        st.caption("**Physics:** Strong B-field → Vacuum polarization → Dark photon production via kinetic mixing")
 
 # ============================================================================
-# TAB 3: PRIMORDIAL ENTANGLEMENT
+# TAB 3: PRIMORDIAL ENTANGLEMENT (FIXED DUPLICATE KEYS)
 # ============================================================================
 
 with tab3:
@@ -463,12 +445,12 @@ with tab3:
     col1, col2 = st.columns(2)
     
     with col1:
-        omega_ent = st.slider("Ω (Oscillation)", 0.0, 2.0, 0.7, 0.01)
-        dark_mass = st.slider("Dark Photon Mass (eV)", 1e-12, 1e-6, 1e-9, format="%.1e")
-        mixing_prim = st.slider("Mixing Angle ε", 0.0, 0.5, 0.1, 0.01)
-        t_steps = st.slider("Time Steps", 50, 500, 100)
+        omega_ent = st.slider("Ω (Oscillation)", 0.0, 2.0, 0.7, 0.01, key="omega_tab3")
+        dark_mass3 = st.slider("Dark Photon Mass (eV)", 1e-12, 1e-6, 1e-9, format="%.1e", key="darkmass_tab3")
+        mixing_prim = st.slider("Mixing Angle ε", 0.0, 0.5, 0.1, 0.01, key="mixing_tab3")
+        t_steps = st.slider("Time Steps", 50, 500, 100, key="tsteps_tab3")
         
-        entropy, mixing_prob = process_primordial_entanglement(omega_ent, dark_mass, mixing_prim, t_steps)
+        entropy, mixing_prob = process_primordial_entanglement(omega_ent, dark_mass3, mixing_prim, t_steps)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_filename = f"qcaus_entanglement_omega{omega_ent:.2f}_{timestamp}"
@@ -483,7 +465,7 @@ with tab3:
         st.subheader("📥 Download")
         
         entanglement_data = {
-            "parameters": {"omega": omega_ent, "dark_mass": dark_mass, "mixing": mixing_prim},
+            "parameters": {"omega": omega_ent, "dark_mass": dark_mass3, "mixing": mixing_prim},
             "final_entropy": float(entropy[-1]),
             "final_mixing": float(mixing_prob[-1])
         }
@@ -507,8 +489,6 @@ with tab3:
         st.pyplot(fig)
         st.markdown(get_image_download_link(fig, f"{base_filename}_evolution.png", "📸 Download"), unsafe_allow_html=True)
         plt.close(fig)
-        
-        st.caption(f"**Final Entropy:** {entropy[-1]:.4f} | **Final Mixing:** {mixing_prob[-1]:.4f}")
 
 # ============================================================================
 # TAB 4: QCIS POWER SPECTRA
@@ -521,10 +501,10 @@ with tab4:
     col1, col2 = st.columns(2)
     
     with col1:
-        f_nl = st.slider("f_NL (Non-Gaussianity)", 0.0, 5.0, 1.0, 0.1)
-        n_q = st.slider("n_q (Quantum Index)", 0.0, 2.0, 0.5, 0.05)
-        k_min = st.slider("k_min (Mpc⁻¹)", 0.001, 0.01, 0.005, 0.001, format="%.3f")
-        k_max = st.slider("k_max (Mpc⁻¹)", 0.1, 1.0, 0.5, 0.05)
+        f_nl = st.slider("f_NL (Non-Gaussianity)", 0.0, 5.0, 1.0, 0.1, key="fnl_tab4")
+        n_q = st.slider("n_q (Quantum Index)", 0.0, 2.0, 0.5, 0.05, key="nq_tab4")
+        k_min = st.slider("k_min (Mpc⁻¹)", 0.001, 0.01, 0.005, 0.001, format="%.3f", key="kmin_tab4")
+        k_max = st.slider("k_max (Mpc⁻¹)", 0.1, 1.0, 0.5, 0.05, key="kmax_tab4")
         
         k_vals = np.logspace(np.log10(k_min), np.log10(k_max), 100)
         P_quantum = process_qcis(k_vals, f_nl, n_q)
@@ -570,19 +550,19 @@ with tab4:
 with tab5:
     st.header("🌈 Spectral & Color Heat Pattern Analyzer")
     
-    pattern_type = st.radio("Pattern Type", ["FDM Soliton", "PDP Entanglement"], horizontal=True)
+    pattern_type = st.radio("Pattern Type", ["FDM Soliton", "PDP Entanglement"], horizontal=True, key="pattern_type")
     
     col1, col2 = st.columns([1, 2])
     
     with col1:
         if pattern_type == "FDM Soliton":
-            k = st.slider("k (Soliton Scale)", 0.5, 3.0, 1.0, 0.05)
-            pattern = generate_fdm_pattern(size=512, k=k)
-            title = f"FDM Soliton (k={k:.2f})"
+            k_val = st.slider("k (Soliton Scale)", 0.5, 3.0, 1.0, 0.05, key="k_tab5")
+            pattern = generate_fdm_pattern(size=512, k_val=k_val)
+            title = f"FDM Soliton (k={k_val:.2f})"
         else:
-            omega_pdp = st.slider("Ω (Entanglement)", 0.2, 1.5, 0.5, 0.05)
-            fringe = st.slider("Fringe Scale", 0.5, 3.0, 1.0, 0.1)
-            pattern = generate_pdp_pattern(size=512, omega=omega_pdp, fringe=fringe)
+            omega_pdp = st.slider("Ω (Entanglement)", 0.2, 1.5, 0.5, 0.05, key="omega_tab5")
+            fringe_val = st.slider("Fringe Scale", 0.5, 3.0, 1.0, 0.1, key="fringe_tab5")
+            pattern = generate_pdp_pattern(size=512, omega_val=omega_pdp, fringe_val=fringe_val)
             title = f"PDP Entanglement (Ω={omega_pdp:.2f})"
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

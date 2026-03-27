@@ -1,6 +1,6 @@
 """
 Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
-COMPLETE VERIFIED VERSION - Full Spectrum Color Mapping
+Complete verified version with full-spectrum color mapping
 """
 
 import streamlit as st
@@ -252,25 +252,22 @@ with st.sidebar:
     pixel_scale_kpc = st.number_input("kpc/pixel", value=pixel_scale_kpc, format="%.4f")
 
 # ============================================================================
-# MAIN CONTENT - CREATE TABS
+# MAIN CONTENT - TABS
 # ============================================================================
 
 st.title("🌌 Quantum Cosmology & Astrophysics Unified Suite")
 st.markdown("*Full-spectrum mapping of invisible quantum fields*")
 
 # Create tabs
-tab1, tab2, tab3, tab4 = st.tabs([
+tabs = st.tabs([
     "🌈 Full-Spectrum Quantum Fields",
     "⚡ Magnetar QED Explorer",
     "🌀 Primordial Entanglement",
     "📊 QCIS Power Spectra"
 ])
 
-# ============================================================================
-# TAB 1: FULL-SPECTRUM QUANTUM FIELDS
-# ============================================================================
-
-with tab1:
+# Tab 1: Full-Spectrum Quantum Fields
+with tabs[0]:
     st.header("🌈 Full-Spectrum Quantum Field Visualization")
     
     if astro_image is not None:
@@ -370,11 +367,8 @@ with tab1:
     else:
         st.info("👈 Select or upload an image to begin full-spectrum quantum visualization")
 
-# ============================================================================
-# TAB 2: MAGNETAR QED EXPLORER
-# ============================================================================
-
-with tab2:
+# Tab 2: Magnetar QED Explorer
+with tabs[1]:
     st.header("⚡ Magnetar QED Explorer")
     
     col1, col2 = st.columns(2)
@@ -426,11 +420,8 @@ with tab2:
         st.markdown(get_image_download_link(fig, f"{base_filename}_magnetar.png", "📸 Download"), unsafe_allow_html=True)
         plt.close(fig)
 
-# ============================================================================
-# TAB 3: PRIMORDIAL ENTANGLEMENT
-# ============================================================================
-
-with tab3:
+# Tab 3: Primordial Entanglement
+with tabs[2]:
     st.header("🌀 Primordial Photon-DarkPhoton Entanglement")
     
     col1, col2 = st.columns(2)
@@ -487,11 +478,8 @@ with tab3:
         st.markdown(get_image_download_link(fig, f"{base_filename}_evolution.png", "📸 Download"), unsafe_allow_html=True)
         plt.close(fig)
 
-# ============================================================================
-# TAB 4: QCIS POWER SPECTRA
-# ============================================================================
-
-with tab4:
+# Tab 4: QCIS Power Spectra
+with tabs[3]:
     st.header("📊 QCIS - Quantum Cosmology Integration Suite")
     
     col1, col2 = st.columns(2)

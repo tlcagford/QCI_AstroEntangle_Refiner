@@ -1,6 +1,6 @@
 """
-Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
-Enhanced with Radar Data Import from StealthPDPRadar
+Universal Image Processor for QCAUS
+Handles: FITS, CSV, JPEG, PNG, BMP, DICOM, TIFF, NPY, NPZ
 """
 
 import streamlit as st
@@ -8,64 +8,237 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, zoom
 from io import BytesIO
 from PIL import Image
 import requests
-
-# Page config must be first Streamlit command
-st.set_page_config(
-    page_title="QCAUS - Quantum Cosmology Suite",
-    page_icon="🌌",
-    layout="wide"
-)
+import os
+import tempfile
 
 # ============================================================================
-# RADAR TO OPTICAL COLOR CONVERSION FUNCTIONS
+# UNIVERSAL IMAGE LOADER
 # ============================================================================
 
-def radar_to_optical_overlay(radar_data):
+def load_image_file(uploaded_file):
     """
-    Convert radar detection signatures to optical color representation
+    Universal image loader - handles multiple formats
     
-    Parameters:
-    -----------
-    radar_data : dict
-        Loaded JSON data from StealthPDPRadar export
-    
-    Returns:
-    --------
-    optical_overlay : numpy.ndarray
-        RGBA overlay for astrophysical images (H, W, 4)
+    Supported formats:
+    - FITS: Astronomical FITS files
+    - CSV: CSV data grids
+    - JPEG/PNG/BMP: Standard images
+    - DICOM: Medical imaging
+    - TIFF: GeoTIFF, microscopy
+    - NPY/NPZ: NumPy arrays
     """
     
-    # Extract components from radar data
+    file_ext = uploaded_file.name.split('.')[-1].lower()
+    file_bytes = uploaded_file.read()
+    
+    # Reset file pointer for potential re-reading
+    uploaded_file.seek(0)
+    
+    try:
+        # ========== FITS Files ==========
+        if file_ext in ['fits', 'fit']:
+            try:
+                from astropy.io import fits
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.fits') as tmp:
+                    tmp.write(file_bytes)
+                    tmp_path = tmp.name
+                
+                with fits.open(tmp_path) as hdul:
+                    data = hdul[0].data
+                    if data is None and len(hdul) > 1:
+                        data = hdul[1].data
+                    
+                    # Handle multi-dimensional FITS
+                    if data.ndim == 3:
+                        # Take first slice or median
+                        data = np.median(data, axis=0)
+                    elif data.ndim > 3:
+                        data = data[0, 0] if data.ndim == 4 else data[0]
+                
+                os.unlink(tmp_path)
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"FITS: {data.shape}"
+                
+            except Exception as e:
+                return None, f"FITS error: {str(e)}"
+        
+        # ========== DICOM Files ==========
+        elif file_ext in ['dcm', 'dicom']:
+            try:
+                import pydicom
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.dcm') as tmp:
+                    tmp.write(file_bytes)
+                    tmp_path = tmp.name
+                
+                ds = pydicom.dcmread(tmp_path)
+                data = ds.pixel_array
+                
+                os.unlink(tmp_path)
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"DICOM: {data.shape}"
+                
+            except ImportError:
+                return None, "pydicom not installed. Install with: pip install pydicom"
+            except Exception as e:
+                return None, f"DICOM error: {str(e)}"
+        
+        # ========== CSV Files ==========
+        elif file_ext == 'csv':
+            try:
+                # Try to load as numeric grid
+                df = pd.read_csv(BytesIO(file_bytes), header=None)
+                data = df.values.astype(float)
+                
+                # Handle missing values
+                data = np.nan_to_num(data)
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"CSV: {data.shape}"
+                
+            except Exception as e:
+                return None, f"CSV error: {str(e)}"
+        
+        # ========== NumPy Files ==========
+        elif file_ext == 'npy':
+            try:
+                data = np.load(BytesIO(file_bytes))
+                
+                # Handle multi-dimensional
+                if data.ndim > 2:
+                    # Take first slice or average
+                    if data.ndim == 3:
+                        data = np.mean(data, axis=0)
+                    else:
+                        data = data[0] if data.shape[0] > 0 else data
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"NPY: {data.shape}"
+                
+            except Exception as e:
+                return None, f"NPY error: {str(e)}"
+        
+        # ========== NPZ Archives ==========
+        elif file_ext == 'npz':
+            try:
+                npz = np.load(BytesIO(file_bytes))
+                # Get first array
+                first_key = list(npz.keys())[0]
+                data = npz[first_key]
+                
+                # Handle multi-dimensional
+                if data.ndim > 2:
+                    if data.ndim == 3:
+                        data = np.mean(data, axis=0)
+                    else:
+                        data = data[0] if data.shape[0] > 0 else data
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"NPZ: {data.shape} (key: {first_key})"
+                
+            except Exception as e:
+                return None, f"NPZ error: {str(e)}"
+        
+        # ========== TIFF/TIF Files ==========
+        elif file_ext in ['tiff', 'tif']:
+            try:
+                from PIL import Image
+                img = Image.open(BytesIO(file_bytes))
+                data = np.array(img)
+                
+                # Convert to grayscale if RGB
+                if data.ndim == 3:
+                    data = np.mean(data, axis=2)
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"TIFF: {data.shape}"
+                
+            except Exception as e:
+                return None, f"TIFF error: {str(e)}"
+        
+        # ========== Standard Images (JPEG, PNG, BMP, GIF) ==========
+        elif file_ext in ['jpg', 'jpeg', 'png', 'bmp', 'gif']:
+            try:
+                img = Image.open(BytesIO(file_bytes))
+                data = np.array(img)
+                
+                # Convert to grayscale if RGB/RGBA
+                if data.ndim == 3:
+                    if data.shape[2] >= 3:
+                        data = np.mean(data[:, :, :3], axis=2)
+                    else:
+                        data = data[:, :, 0]
+                
+                # Normalize
+                data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+                return data, f"{file_ext.upper()}: {data.shape}"
+                
+            except Exception as e:
+                return None, f"Image error: {str(e)}"
+        
+        else:
+            return None, f"Unsupported format: {file_ext}"
+            
+    except Exception as e:
+        return None, f"General error: {str(e)}"
+
+# ============================================================================
+# RESIZE FUNCTION FOR OVERLAY
+# ============================================================================
+
+def resize_to_match(image, target_shape):
+    """Resize image to match target shape for overlay"""
+    if image.shape == target_shape:
+        return image
+    
+    from scipy.ndimage import zoom
+    factors = (target_shape[0] / image.shape[0], target_shape[1] / image.shape[1])
+    resized = zoom(image, factors, order=1)
+    return resized
+
+# ============================================================================
+# ENHANCED RADAR OVERLAY WITH BETTER COORDINATE MAPPING
+# ============================================================================
+
+def radar_to_optical_overlay_enhanced(radar_data, image_shape, radar_range_km=300):
+    """
+    Enhanced overlay with better coordinate mapping for any image size
+    """
+    
     pdp_detections = radar_data.get('pdp_detections', [])
     aircraft_data = radar_data.get('aircraft_data', [])
-    detection_summary = radar_data.get('detection_summary', {})
-    parameters = radar_data.get('parameters', {})
     
-    # Create overlay dimensions (default 512x512 for astrophysical images)
-    H, W = 512, 512
+    H, W = image_shape
     optical_overlay = np.zeros((H, W, 4))
     
-    # 1. Create Gaussian blobs for each detection
+    # Radar coordinates: range 0-300km, azimuth 0-360°
+    # Map to image coordinates: y (range) 0-H, x (azimuth) 0-W
+    
     for det in pdp_detections:
         range_km = det.get('range_km', 150)
         azimuth_deg = det.get('azimuth_deg', 180)
         confidence = det.get('confidence', 0.5)
         
-        # Convert radar coordinates to image coordinates
-        # Range: 0-300km -> 0-512 pixels
-        # Azimuth: 0-360° -> 0-512 pixels
+        # Convert to pixel coordinates
         x = int(azimuth_deg / 360 * W)
-        y = int(range_km / 300 * H)
+        y = int(range_km / radar_range_km * H)
         
-        # Confidence determines brightness and size
-        size = int(20 + confidence * 30)
+        # Size based on confidence and image dimensions
+        size = int(max(10, min(50, confidence * H / 10)))
         brightness = 0.5 + confidence * 0.5
         
-        # Create Gaussian blob for detection
+        # Create Gaussian blob
         for dx in range(-size, size+1):
             for dy in range(-size, size+1):
                 xx = x + dx
@@ -73,30 +246,25 @@ def radar_to_optical_overlay(radar_data):
                 if 0 <= xx < W and 0 <= yy < H:
                     dist = np.sqrt(dx**2 + dy**2)
                     if dist < size:
-                        # Gaussian falloff
                         intensity = brightness * np.exp(-dist**2 / (size/3)**2)
                         
-                        # Color based on confidence and stealth level
+                        # Color based on confidence
                         if confidence > 0.6:
-                            # High confidence - Red/IR
                             optical_overlay[yy, xx, 0] += intensity * 1.0  # Red
-                            optical_overlay[yy, xx, 1] += intensity * 0.2  # Green
-                            optical_overlay[yy, xx, 2] += intensity * 0.1  # Blue
+                            optical_overlay[yy, xx, 1] += intensity * 0.2
+                            optical_overlay[yy, xx, 2] += intensity * 0.1
                         elif confidence > 0.4:
-                            # Medium confidence - Cyan/Teal (entanglement)
-                            optical_overlay[yy, xx, 0] += intensity * 0.2  # Red
-                            optical_overlay[yy, xx, 1] += intensity * 0.8  # Green
-                            optical_overlay[yy, xx, 2] += intensity * 0.8  # Blue
+                            optical_overlay[yy, xx, 0] += intensity * 0.2
+                            optical_overlay[yy, xx, 1] += intensity * 0.8
+                            optical_overlay[yy, xx, 2] += intensity * 0.8
                         else:
-                            # Low confidence - Violet/Blue (dark mode)
-                            optical_overlay[yy, xx, 0] += intensity * 0.4  # Red
-                            optical_overlay[yy, xx, 1] += intensity * 0.2  # Green
-                            optical_overlay[yy, xx, 2] += intensity * 0.9  # Blue
+                            optical_overlay[yy, xx, 0] += intensity * 0.4
+                            optical_overlay[yy, xx, 1] += intensity * 0.2
+                            optical_overlay[yy, xx, 2] += intensity * 0.9
                         
-                        # Set alpha (transparency)
                         optical_overlay[yy, xx, 3] += intensity * 0.7
     
-    # 2. Add detection markers for stealth aircraft
+    # Add stealth aircraft markers
     for aircraft in aircraft_data:
         stealth_level = aircraft.get('stealth_level', 'None')
         if stealth_level in ['Very High', 'High']:
@@ -104,296 +272,131 @@ def radar_to_optical_overlay(radar_data):
             azimuth_deg = aircraft.get('azimuth_deg', 180)
             
             x = int(azimuth_deg / 360 * W)
-            y = int(range_km / 300 * H)
+            y = int(range_km / radar_range_km * H)
             
-            # Add red circle marker for stealth
-            for dx in range(-5, 6):
-                for dy in range(-5, 6):
+            for dx in range(-8, 9):
+                for dy in range(-8, 9):
                     xx = x + dx
                     yy = y + dy
                     if 0 <= xx < W and 0 <= yy < H:
                         dist = np.sqrt(dx**2 + dy**2)
-                        if dist <= 4:
-                            optical_overlay[yy, xx, 0] = 1.0  # Full red
+                        if dist <= 6:
+                            optical_overlay[yy, xx, 0] = 1.0
                             optical_overlay[yy, xx, 1] = 0.2
                             optical_overlay[yy, xx, 2] = 0.2
                             optical_overlay[yy, xx, 3] = 0.9
     
-    # Normalize RGB channels
+    # Normalize
     for c in range(3):
         max_val = np.max(optical_overlay[..., c])
         if max_val > 0:
             optical_overlay[..., c] = optical_overlay[..., c] / max_val
     
-    # Clip alpha
     optical_overlay[..., 3] = np.clip(optical_overlay[..., 3], 0, 1)
     
     return optical_overlay
 
-def overlay_on_astrophysical_image(astrophysical_image, optical_overlay):
-    """
-    Overlay radar signatures on astrophysical images
-    
-    Parameters:
-    -----------
-    astrophysical_image : numpy.ndarray
-        RGB astrophysical image (H, W, 3) or grayscale (H, W)
-    optical_overlay : numpy.ndarray
-        RGBA overlay from radar data (H, W, 4)
-    
-    Returns:
-    --------
-    combined : numpy.ndarray
-        Combined RGB image with overlay
-    """
-    # Convert grayscale to RGB if needed
-    if len(astrophysical_image.shape) == 2:
-        astrophysical_image = np.stack([astrophysical_image] * 3, axis=-1)
-    
-    # Normalize
-    if astrophysical_image.max() > 1:
-        astrophysical_image = astrophysical_image / astrophysical_image.max()
-    
-    # Resize overlay to match astrophysical image if needed
-    if astrophysical_image.shape[:2] != optical_overlay.shape[:2]:
-        from skimage.transform import resize
-        optical_overlay = resize(optical_overlay, astrophysical_image.shape[:2], preserve_range=True)
-    
-    # Apply alpha blending
-    alpha = optical_overlay[..., 3:4]
-    combined = astrophysical_image * (1 - alpha) + optical_overlay[..., :3] * alpha
-    
-    return np.clip(combined, 0, 1)
-
 # ============================================================================
-# EXAMPLE ASTROPHYSICAL IMAGES
+# SAMPLE DATA CREATION
 # ============================================================================
 
-def get_sample_astrophysical_image(image_name):
-    """Get sample astrophysical images for demonstration"""
-    
-    # Create a synthetic galaxy-like image for demonstration
-    size = 512
-    x = np.linspace(-2, 2, size)
-    y = np.linspace(-2, 2, size)
-    X, Y = np.meshgrid(x, y)
-    
-    if image_name == "Galaxy Cluster":
-        # Simulate a galaxy cluster with multiple cores
-        R = np.sqrt(X**2 + Y**2)
-        galaxy = np.exp(-R**2 / 1.5**2)
-        
-        # Add secondary peaks
-        galaxy += 0.5 * np.exp(-((X-0.5)**2 + (Y-0.3)**2) / 0.3**2)
-        galaxy += 0.4 * np.exp(-((X+0.4)**2 + (Y+0.6)**2) / 0.4**2)
-        galaxy += 0.3 * np.exp(-((X+0.2)**2 + (Y-0.7)**2) / 0.35**2)
-        
-        # Add noise
-        galaxy += np.random.randn(size, size) * 0.05
-        
-        return galaxy / galaxy.max()
-    
-    elif image_name == "Nebula":
-        # Simulate a nebula with filamentary structure
-        R = np.sqrt(X**2 + Y**2)
-        theta = np.arctan2(Y, X)
-        
-        nebula = np.exp(-R**2 / 1.2**2) * (1 + 0.3 * np.cos(5 * theta))
-        nebula += 0.2 * np.exp(-((X-0.8)**2 + Y**2) / 0.2**2)
-        nebula += 0.2 * np.exp(-((X+0.8)**2 + Y**2) / 0.2**2)
-        
-        # Add noise
-        nebula += np.random.randn(size, size) * 0.05
-        
-        return nebula / nebula.max()
-    
-    else:  # Cosmic Microwave Background
-        # Simulate CMB-like fluctuations
-        cmb = np.random.randn(size, size)
-        cmb = gaussian_filter(cmb, sigma=5)
-        return (cmb - cmb.min()) / (cmb.max() - cmb.min())
+def create_sample_radar_data():
+    """Create sample radar detection data"""
+    return {
+        "timestamp": "2026-03-27T12:00:00",
+        "parameters": {
+            "omega": 0.72,
+            "fringe": 1.75,
+            "entanglement": 0.44,
+            "mixing": 0.17,
+            "threshold": 0.30
+        },
+        "detection_summary": {
+            "max_probability": 1.0,
+            "mean_probability": 0.65,
+            "total_detections": 1
+        },
+        "pdp_detections": [
+            {"id": 1, "range_km": 148.8, "azimuth_deg": 179.0, "confidence": 0.641, "size_pixels": 37}
+        ],
+        "aircraft_data": [
+            {
+                "callsign": "STEALTH",
+                "aircraft_name": "Stealth Target",
+                "aircraft_type": "Stealth Demonstrator",
+                "country": "Test",
+                "stealth_level": "Low",
+                "range_km": 150,
+                "azimuth_deg": 180,
+                "rcs_m2": 8.5
+            }
+        ]
+    }
 
 # ============================================================================
-# SIDEBAR - RADAR DATA IMPORT
+# SIDEBAR - UPDATED WITH ALL FORMATS
 # ============================================================================
 
-with st.sidebar:
-    st.title("🌌 QCAUS")
-    st.markdown("Quantum Cosmology & Astrophysics Unified Suite")
-    
-    st.header("📡 Radar Data Import")
-    st.caption("Import detection data from StealthPDPRadar")
-    
-    # File uploader for radar data
-    uploaded_radar = st.file_uploader(
-        "Upload Radar JSON Export",
-        type=['json'],
-        help="Export from StealthPDPRadar as Complete JSON"
-    )
-    
-    if uploaded_radar is not None:
-        try:
-            radar_data = json.load(uploaded_radar)
-            st.success(f"✅ Loaded {len(radar_data.get('pdp_detections', []))} detections")
-            
-            # Display detection summary
-            summary = radar_data.get('detection_summary', {})
-            st.metric("Total Detections", summary.get('total_detections', 0))
-            st.metric("Max Probability", f"{summary.get('max_probability', 0):.3f}")
-            
-            # Parameter display
-            params = radar_data.get('parameters', {})
-            st.caption(f"Ω={params.get('omega', 0.72)} | ε={params.get('mixing', 0.17)}")
-            
-        except Exception as e:
-            st.error(f"Error loading file: {e}")
-            radar_data = None
-    else:
-        radar_data = None
-        st.info("📤 Export data from StealthPDPRadar as Complete JSON")
-    
-    st.header("🖼️ Astrophysical Image")
+# Add this to your sidebar in the main app
+# (Replace the existing image source section)
+
+"""
+st.header("🖼️ Astrophysical Image")
+
+# Image source selection
+image_source = st.radio("Image Source", ["Sample", "Upload File"])
+
+if image_source == "Sample":
     image_type = st.selectbox(
-        "Select Image",
+        "Select Sample Image",
         ["Galaxy Cluster", "Nebula", "CMB"]
     )
-    
-    st.header("🎨 Overlay Settings")
-    overlay_opacity = st.slider("Opacity", 0.0, 1.0, 0.6, 0.05)
-    show_entanglement = st.checkbox("Show Entanglement (Cyan)", True)
-    show_darkmode = st.checkbox("Show Dark Mode (Violet)", True)
-    show_stealth = st.checkbox("Show Stealth (Red)", True)
+    uploaded_image = None
+    file_format = None
+else:
+    st.caption("Supported formats: FITS, CSV, JPEG, PNG, BMP, DICOM, TIFF, NPY, NPZ")
+    uploaded_image = st.file_uploader(
+        "Upload Image File",
+        type=['fits', 'fit', 'csv', 'jpg', 'jpeg', 'png', 'bmp', 'dcm', 'tiff', 'tif', 'npy', 'npz'],
+        help="Any astrophysical or scientific image format"
+    )
+    if uploaded_image:
+        file_format = uploaded_image.name.split('.')[-1].upper()
+        st.info(f"Format: {file_format}")
+
+# Load sample images function
+def get_sample_astrophysical_image(image_name):
+    # ... existing sample image code ...
+    pass
+"""
 
 # ============================================================================
-# MAIN CONTENT
+# MAIN DISPLAY FUNCTION
 # ============================================================================
 
-st.title("🌌 Quantum Cosmology & Astrophysics Unified Suite")
-st.markdown("Integrating quantum radar detection with astrophysical observations")
-
-# Create tabs
-tab1, tab2, tab3 = st.tabs(["🔭 Image Overlay", "📊 Detection Analysis", "📖 About"])
-
-with tab1:
-    col1, col2 = st.columns(2)
+def display_image_with_overlay(astro_image, radar_data, opacity=0.6, title="Image with Radar Overlay"):
+    """Display image with radar overlay"""
     
-    with col1:
-        st.subheader("Astrophysical Image")
-        
-        # Get sample astrophysical image
-        astro_image = get_sample_astrophysical_image(image_type)
-        
-        # Display as grayscale
-        fig1, ax1 = plt.subplots(figsize=(8, 8))
-        ax1.imshow(astro_image, cmap='gray', origin='lower')
-        ax1.set_title(f"{image_type}")
-        ax1.axis('off')
-        st.pyplot(fig1)
+    if astro_image is None or radar_data is None:
+        return None
     
-    with col2:
-        st.subheader("Radar Detection Overlay")
-        
-        if radar_data is not None:
-            # Convert radar data to optical overlay
-            optical_overlay = radar_to_optical_overlay(radar_data)
-            
-            # Combine with astrophysical image
-            combined = overlay_on_astrophysical_image(astro_image, optical_overlay)
-            
-            # Apply opacity
-            alpha = overlay_opacity
-            combined = astro_image[:, :, np.newaxis] * (1 - alpha) + combined * alpha
-            combined = np.clip(combined, 0, 1)
-            
-            # Display combined image
-            fig2, ax2 = plt.subplots(figsize=(8, 8))
-            ax2.imshow(combined, origin='lower')
-            ax2.set_title(f"{image_type} + Radar Overlay")
-            ax2.axis('off')
-            st.pyplot(fig2)
-            
-            # Show detection info
-            st.caption(f"🔴 Red markers: Stealth targets | 🟢 Cyan: Entanglement | 🔵 Violet: Dark mode")
-            
-        else:
-            st.info("👈 Upload radar data from the sidebar to see overlay")
-            
-            # Show just the astrophysical image
-            fig2, ax2 = plt.subplots(figsize=(8, 8))
-            ax2.imshow(astro_image, cmap='gray', origin='lower')
-            ax2.set_title(f"{image_type} (No overlay)")
-            ax2.axis('off')
-            st.pyplot(fig2)
-
-with tab2:
-    st.subheader("📊 Detection Analysis")
-    
-    if radar_data is not None:
-        # Display detection data
-        detections = radar_data.get('pdp_detections', [])
-        aircraft = radar_data.get('aircraft_data', [])
-        params = radar_data.get('parameters', {})
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Detections", len(detections))
-        col2.metric("Aircraft", len(aircraft))
-        col3.metric("PDP Parameters", f"Ω={params.get('omega', 0.72):.2f}")
-        
-        # Detections table
-        if detections:
-            st.subheader("PDP Detections")
-            det_df = pd.DataFrame(detections)
-            st.dataframe(det_df, use_container_width=True)
-        
-        # Aircraft table
-        if aircraft:
-            st.subheader("Aircraft Data")
-            ac_df = pd.DataFrame(aircraft)
-            st.dataframe(ac_df, use_container_width=True)
-        
-        # Parameter summary
-        with st.expander("PDP Filter Parameters"):
-            st.json(params)
-        
+    # Convert to 3-channel for display
+    if len(astro_image.shape) == 2:
+        astro_display = np.stack([astro_image] * 3, axis=-1)
     else:
-        st.info("Upload radar data to see detection analysis")
-
-with tab3:
-    st.subheader("📖 About")
-    st.markdown("""
-    ### Quantum Cosmology & Astrophysics Unified Suite (QCAUS)
+        astro_display = astro_image.copy()
     
-    This suite integrates quantum radar detection with astrophysical observations:
+    # Create overlay
+    overlay = radar_to_optical_overlay_enhanced(radar_data, astro_image.shape[:2])
     
-    #### Features
-    - **Radar Data Import**: Load detection data from StealthPDPRadar
-    - **Optical Color Conversion**: Convert radar signatures to visible spectrum
-    - **Astrophysical Overlay**: Combine with galaxy clusters, nebulae, and CMB
-    - **Quantum Signatures**: Visualize entanglement residuals and dark-mode leakage
+    # Apply alpha blending
+    alpha = overlay[..., 3:4]
+    combined = astro_display * (1 - alpha * opacity) + overlay[..., :3] * alpha * opacity
     
-    #### Color Mapping
-    | Signature | Radar Color | Optical Color | Meaning |
-    |-----------|-------------|---------------|---------|
-    | Entanglement | Green | Cyan/Teal | Quantum interference patterns |
-    | Dark Mode | Blue | Violet | Dark photon signatures |
-    | Stealth | Red | Infrared/Red | High-confidence detections |
+    # Display
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.imshow(np.clip(combined, 0, 1), origin='lower')
+    ax.set_title(title)
+    ax.axis('off')
     
-    #### Integration with StealthPDPRadar
-    1. Run detection in StealthPDPRadar
-    2. Export as **Complete JSON**
-    3. Upload to this app
-    4. View overlays on astrophysical images
-    
-    #### References
-    - Photon-DarkPhoton Entanglement
-    - Fuzzy Dark Matter Soliton Physics
-    - Quantum Cosmology Integration Suite
-    """)
-
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #888;">
-    <b>QCAUS</b> | Quantum Cosmology & Astrophysics Unified Suite<br>
-    Integrated with StealthPDPRadar | © 2026 Tony E. Ford
-</div>
-""", unsafe_allow_html=True)
+    return fig

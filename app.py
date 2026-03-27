@@ -1,6 +1,4 @@
-with tab1:
-    st.header("⚛️ Quantum Field Visualization")
-    st.markdown("""
+
     **Scientific Framework:** Quantum superposition of astrophysical signals with dark matter and dark photon fields
     
     | Field | Formula | Physical Interpretation |

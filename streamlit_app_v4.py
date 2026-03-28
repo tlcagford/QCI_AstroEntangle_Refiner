@@ -1,6 +1,13 @@
 """
-Magnetar QED Explorer v3.1 – FINAL FIX
-Direct PIL display | No placeholders
+Quantum Cosmology & Astrophysics Unified Suite (QCAUS) v6.0
+Complete Integration:
+1. QCI AstroEntangle Refiner - FDM Solitons & Image Processing
+2. Stellaris QED Explorer - Magnetar Physics & Dark Photons
+3. Primordial Entanglement - Quantum Mixing & Conversion
+4. QCIS - Quantum-Corrected Cosmology & Power Spectra
+
+Author: Tony E. Ford
+License: Dual License (Academic/Commercial)
 """
 
 import io
@@ -10,20 +17,26 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from scipy.constants import c, hbar, e, m_e, alpha
 from scipy.ndimage import gaussian_filter, sobel
+from scipy.integrate import odeint
+from scipy.fft import fft2, fftshift
 from PIL import Image, ImageDraw, ImageFont
 import warnings
+import time
+import json
+from dataclasses import dataclass
+from typing import Dict, Tuple
 
 warnings.filterwarnings('ignore')
 
 # ── PAGE CONFIG ─────────────────────────────────────────────
 st.set_page_config(
     layout="wide",
-    page_title="Magnetar QED Explorer v3.1",
-    page_icon="⚡",
+    page_title="QCAUS v6.0 - Unified Quantum Cosmology Suite",
+    page_icon="🔭",
     initial_sidebar_state="expanded"
 )
 
-# Dark theme
+# Dark professional theme
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] { background: #0a0a1a; }
@@ -57,6 +70,7 @@ PRELOADED = {
 }
 
 
+# ── GENERATE SAMPLE IMAGE ─────────────────────────────────────────────
 def generate_sample(size=400, pattern="abell"):
     """Generate realistic synthetic image"""
     img = np.zeros((size, size))
@@ -84,6 +98,7 @@ def generate_sample(size=400, pattern="abell"):
     return img
 
 
+# ── QCI ASTROENTANGLE REFINER FUNCTIONS ─────────────────────────────────────────────
 def create_soliton(size, fringe):
     """FDM Soliton Core - [sin(kr)/kr]²"""
     h, w = size
@@ -118,28 +133,53 @@ def create_wave(size, fringe):
     return pattern
 
 
-def process_image(image, omega, fringe, brightness=1.2):
-    """Full PDP processing"""
+def create_dark_matter_density(image, soliton):
+    """Dark Matter Density from gradients"""
+    smoothed = gaussian_filter(image, sigma=8)
+    grad_x = sobel(smoothed, axis=0)
+    grad_y = sobel(smoothed, axis=1)
+    gradient = np.sqrt(grad_x**2 + grad_y**2)
+    
+    if gradient.max() > gradient.min():
+        gradient = (gradient - gradient.min()) / (gradient.max() - gradient.min())
+    else:
+        gradient = np.zeros_like(gradient)
+    
+    return np.clip(soliton * 0.6 + gradient * 0.4, 0, 1)
+
+
+def create_rgb_overlay(image, dark_photon, dm_density, soliton):
+    """RGB Composite: R=Image, G=Dark Photon, B=Dark Matter"""
+    img_norm = np.clip(image, 0, 1)
+    dp_norm = np.clip(dark_photon, 0, 1)
+    dm_norm = np.clip(dm_density, 0, 1)
+    sol_norm = np.clip(soliton, 0, 1)
+    
+    red = img_norm
+    green = img_norm * 0.3 + dp_norm * 0.5 + sol_norm * 0.2
+    blue = img_norm * 0.2 + dm_norm * 0.6 + sol_norm * 0.2
+    
+    return np.clip(np.stack([red, green, blue], axis=-1), 0, 1)
+
+
+def process_qci(image, omega, fringe, brightness=1.2):
+    """Full QCI processing"""
     h, w = image.shape
     
     soliton = create_soliton((h, w), fringe)
     wave = create_wave((h, w), fringe)
+    dm_density = create_dark_matter_density(image, soliton)
     
     mixing = omega * 0.6
     
     result = image * (1 - mixing * 0.4)
     result = result + wave * mixing * 0.5
+    result = result + dm_density * mixing * 0.3
     result = result + soliton * mixing * 0.4
     result = result * brightness
     result = np.clip(result, 0, 1)
     
-    rgb = np.stack([
-        result,
-        result * 0.3 + wave * 0.5 + soliton * 0.2,
-        result * 0.2 + soliton * 0.8
-    ], axis=-1)
-    rgb = np.clip(rgb, 0, 1)
-    
+    rgb = create_rgb_overlay(result, wave, dm_density, soliton)
     entropy = -mixing * np.log(mixing + 1e-12)
     
     return {
@@ -147,6 +187,7 @@ def process_image(image, omega, fringe, brightness=1.2):
         'entangled': result,
         'soliton': soliton,
         'wave': wave,
+        'dark_matter': dm_density,
         'rgb': rgb,
         'mixing': mixing,
         'entropy': entropy,
@@ -160,28 +201,89 @@ def process_image(image, omega, fringe, brightness=1.2):
     }
 
 
+# ── STELLARIS QED FUNCTIONS ─────────────────────────────────────────────
+def stellaris_magnetar_field(B_surface, r, theta, inclination=0):
+    """Magnetar dipole field"""
+    theta_rad = np.radians(theta + inclination)
+    B0 = B_surface / (r**3)
+    B_r = 2 * B0 * np.cos(theta_rad)
+    B_theta = B0 * np.sin(theta_rad)
+    return B_r, B_theta, np.sqrt(B_r**2 + B_theta**2)
+
+
+def stellaris_dark_photon_conversion(B, L, epsilon, m_dark, omega=1e18):
+    """Dark photon conversion probability"""
+    if m_dark <= 0:
+        return (epsilon * B / 1e15)**2 * np.ones_like(L)
+    hbar_ev_s = 6.582e-16
+    c_km_s = 3e5
+    conv_len = 4 * omega * hbar_ev_s * c_km_s / (m_dark**2)
+    P = (epsilon * B / 1e15)**2 * np.sin(np.pi * L / conv_len)**2
+    return np.clip(P, 1e-30, 1)
+
+
+def stellaris_schwinger_pair(B_field):
+    """Schwinger pair production rate"""
+    B_norm = B_field / B_crit
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return np.exp(-np.pi / (B_norm + 1e-9))
+
+
+# ── PRIMORDIAL ENTANGLEMENT FUNCTIONS ─────────────────────────────────────────────
+def primordial_von_neumann_evolution(omega, m_dark, H=70, t_max=1.0):
+    """Solve von Neumann equation"""
+    epsilon = omega * 0.1
+    t = np.linspace(0, t_max, 200)
+    
+    # Analytic approximation for demonstration
+    mixing_evolution = epsilon * (1 - np.exp(-H * t))
+    entropy_evolution = -mixing_evolution * np.log(mixing_evolution + 1e-12)
+    
+    return mixing_evolution, entropy_evolution, t
+
+
+# ── QCIS FRAMEWORK FUNCTIONS ─────────────────────────────────────────────
+def qcis_power_spectrum(k, A_s=2.1e-9, n_s=0.965, f_nl=1.0, r=0.01):
+    """Quantum-corrected power spectrum"""
+    k0 = 0.05
+    P_lcdm = A_s * (k / k0)**(n_s - 1)
+    quantum_correction = 1 + f_nl * (k / k0)**0.8
+    P_quantum = P_lcdm * quantum_correction
+    tensor_spectrum = r * P_lcdm
+    return P_lcdm, P_quantum, tensor_spectrum, quantum_correction
+
+
+def qcis_transfer_function(k, omega_m=0.3, omega_b=0.05, h=0.7):
+    """Matter transfer function"""
+    q = k / (omega_m * h**2)
+    T_EH = np.log(1 + 2.34*q) / (2.34*q) * (1 + 3.89*q + (16.1*q)**2 + (5.46*q)**3 + (6.71*q)**4)**(-0.25)
+    return T_EH
+
+
+# ── UTILITY FUNCTIONS ─────────────────────────────────────────────
 def array_to_pil(arr):
-    """Convert numpy array to PIL Image - guaranteed display"""
-    if len(arr.shape) == 3:
-        arr = np.clip(arr, 0, 1)
-        return Image.fromarray((arr * 255).astype(np.uint8))
-    else:
-        arr = np.clip(arr, 0, 1)
-        return Image.fromarray((arr * 255).astype(np.uint8)).convert('RGB')
+    """Convert numpy array to PIL Image"""
+    return Image.fromarray((np.clip(arr, 0, 1) * 255).astype(np.uint8))
 
 
-def add_annotations_direct(image_array, metadata, scale_kpc=100, title_prefix="Before"):
-    """Add annotations directly to PIL image - no matplotlib for main images"""
-    img_pil = array_to_pil(image_array)
+def fig_to_pil(fig):
+    """Convert matplotlib figure to PIL Image"""
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', facecolor='black', dpi=100)
+    buf.seek(0)
+    return Image.open(buf)
+
+
+def add_annotations(image_array, metadata, scale_kpc=100, title_prefix="Before"):
+    """Add QCI-style annotations"""
+    img_pil = array_to_pil(image_array).convert('RGB')
     draw = ImageDraw.Draw(img_pil)
     
     try:
         font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
         font_tiny = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11)
     except:
         font_small = ImageFont.load_default()
-        font_medium = ImageFont.load_default()
         font_tiny = ImageFont.load_default()
     
     h, w = image_array.shape[:2]
@@ -195,7 +297,7 @@ def add_annotations_direct(image_array, metadata, scale_kpc=100, title_prefix="B
     
     # North indicator
     draw.line([w - 35, 30, w - 35, 65], fill='white', width=3)
-    draw.text((w - 45, 12), "N", fill='white', font=font_medium)
+    draw.text((w - 45, 12), "N", fill='white', font=font_small)
     
     # Physics info box
     info_lines = [
@@ -221,42 +323,36 @@ def add_annotations_direct(image_array, metadata, scale_kpc=100, title_prefix="B
                    fill=(0, 0, 0, 200), outline='white')
     draw.text((w//2 - title_width//2, 15), title_text, fill='white', font=font_small, align='center')
     
-    return img_pil
+    return np.array(img_pil) / 255.0
 
 
-def create_annotated_side_by_side_direct(original_array, processed_array, metadata, scale_kpc=100):
-    """Create side-by-side comparison using PIL directly"""
-    original_pil = add_annotations_direct(original_array, metadata, scale_kpc, "Before")
-    processed_pil = add_annotations_direct(processed_array, metadata, scale_kpc, "After")
+def create_annotated_side_by_side(original_array, processed_array, metadata, scale_kpc=100):
+    """Create side-by-side comparison using PIL"""
+    original_pil = add_annotations(original_array, metadata, scale_kpc, "Before")
+    processed_pil = add_annotations(processed_array, metadata, scale_kpc, "After")
     
-    # Combine images side by side
-    w_total = original_pil.width + processed_pil.width
-    h_total = max(original_pil.height, processed_pil.height)
+    w_total = original_pil.shape[1] + processed_pil.shape[1]
+    h_total = max(original_pil.shape[0], processed_pil.shape[0])
     
-    combined = Image.new('RGB', (w_total, h_total), color=(10, 10, 26))
-    combined.paste(original_pil, (0, 0))
-    combined.paste(processed_pil, (original_pil.width, 0))
+    combined = np.zeros((h_total, w_total, 3))
+    combined[:, :original_pil.shape[1]] = original_pil
+    combined[:, original_pil.shape[1]:] = processed_pil
     
     return combined
 
 
 # ── SIDEBAR ─────────────────────────────────────────────
 with st.sidebar:
-    st.title("⚡ Magnetar QED")
-    st.markdown("*Quantum Vacuum Physics*")
+    st.title("🔭 QCAUS v6.0")
+    st.markdown("*Unified Quantum Cosmology Suite*")
     st.markdown("---")
     
-    # Data source radio
+    # Data source
     data_source = st.radio("📁 Data Source", ["📤 Upload Image", "🌌 Preloaded Example"])
     
     if data_source == "📤 Upload Image":
-        uploaded = st.file_uploader(
-            "Drag & drop file here",
-            type=['fits', 'png', 'jpg', 'jpeg', 'tif', 'tiff'],
-            help="FITS (astronomy), PNG, JPG, TIFF"
-        )
+        uploaded = st.file_uploader("Drag & drop file here", type=['fits', 'png', 'jpg', 'jpeg', 'tif', 'tiff'])
         use_upload = True
-        # Default preset for parameters
         current_preset = PRELOADED["🌌 Bullet Cluster"]
     else:
         selected = st.selectbox("Select Object", list(PRELOADED.keys()))
@@ -265,23 +361,17 @@ with st.sidebar:
         st.info(current_preset['desc'])
     
     st.markdown("---")
-    st.markdown("### ⚛️ Parameters")
+    st.markdown("### ⚛️ Unified Parameters")
     
-    # Set defaults based on preloaded or upload
     if use_upload:
-        omega_default = 0.70
-        fringe_default = 65
-        scale_default = 100
+        omega = st.slider("Ω Entanglement", 0.1, 1.0, 0.70, 0.05)
+        fringe = st.slider("Fringe Scale", 20, 120, 65, 5)
     else:
-        omega_default = current_preset["omega"]
-        fringe_default = current_preset["fringe"]
-        scale_default = current_preset["scale_kpc"]
+        omega = st.slider("Ω Entanglement", 0.1, 1.0, current_preset["omega"], 0.05)
+        fringe = st.slider("Fringe Scale", 20, 120, current_preset["fringe"], 5)
     
-    omega = st.slider("Ω Entanglement", 0.1, 1.0, omega_default, 0.05)
-    fringe = st.slider("Fringe Scale", 20, 120, fringe_default, 5)
     brightness = st.slider("Brightness", 0.8, 1.8, 1.2, 0.05)
-    scale_kpc = st.selectbox("Scale (kpc)", [50, 100, 150, 200, 300], 
-                              index=[50,100,150,200,300].index(scale_default) if scale_default in [50,100,150,200,300] else 1)
+    scale_kpc = st.selectbox("Scale (kpc)", [50, 100, 150, 200, 300], index=1)
     
     st.markdown("---")
     st.markdown("### 🌌 Magnetar Parameters")
@@ -290,12 +380,12 @@ with st.sidebar:
     m_dark = st.slider("Dark Photon Mass (eV)", 1e-12, 1e-6, 1e-9, format="%.1e")
     a_spin = st.slider("Kerr Spin", 0.0, 0.998, 0.9)
     
-    st.caption("Tony Ford | Magnetar QED v3.1")
+    st.caption("Tony Ford | QCAUS v6.0 | Unified Suite")
 
 
 # ── MAIN APP ─────────────────────────────────────────────
-st.title("⚡ Magnetar QED Explorer")
-st.markdown("*Quantum Vacuum Engineering for Extreme Astrophysics*")
+st.title("🔭 Quantum Cosmology & Astrophysics Unified Suite")
+st.markdown("*Complete Integration: QCI + Stellaris + Primordial + QCIS*")
 st.markdown("---")
 
 # Metrics
@@ -315,7 +405,7 @@ if B_ratio > 1:
 
 
 # ── LOAD AND PROCESS IMAGE ─────────────────────────────────────────────
-if data_source == "📤 Upload Image" and uploaded is not None:
+if use_upload and uploaded is not None:
     with st.spinner(f"Processing {uploaded.name}..."):
         ext = uploaded.name.split(".")[-1].lower()
         if ext == 'fits':
@@ -332,22 +422,19 @@ if data_source == "📤 Upload Image" and uploaded is not None:
             img = Image.open(uploaded).convert('L')
             img_data = np.array(img, dtype=np.float32) / 255.0
         
-        # Resize if needed
         if img_data.shape[0] > 500:
             from skimage.transform import resize
             img_data = resize(img_data, (500, 500), preserve_range=True)
         
-        results = process_image(img_data, omega, fringe, brightness)
+        qci_results = process_qci(img_data, omega, fringe, brightness)
         st.success(f"✅ Loaded: {uploaded.name}")
-        source_name = uploaded.name
 
-elif data_source == "🌌 Preloaded Example":
+elif not use_upload:
     with st.spinner(f"Loading {selected}..."):
         pattern = PRELOADED[selected]["pattern"]
         img_data = generate_sample(400, pattern)
-        results = process_image(img_data, omega, fringe, brightness)
+        qci_results = process_qci(img_data, omega, fringe, brightness)
         st.success(f"✅ Loaded: {selected}")
-        source_name = selected
 
 else:
     st.info("📁 **Upload an image or select a preloaded example**")
@@ -355,28 +442,24 @@ else:
 
 
 # ── UPDATE METADATA ─────────────────────────────────────────────
-results['metadata'].update({
+qci_results['metadata'].update({
     'omega': omega,
     'fringe': fringe,
-    'mixing': results['mixing'],
-    'entropy': results['entropy'],
+    'mixing': qci_results['mixing'],
+    'entropy': qci_results['entropy'],
     'brightness': brightness,
 })
 
 
-# ── DISPLAY ANNOTATED SIDE-BY-SIDE (DIRECT PIL) ─────────────────────────────────────────────
+# ── ANNOTATED SIDE-BY-SIDE ─────────────────────────────────────────────
 st.markdown("### 📊 Annotated Comparison")
-
-# Create combined image directly with PIL
-combined_img = create_annotated_side_by_side_direct(
-    results['original'],
-    results['rgb'],
-    results['metadata'],
+combined_img = create_annotated_side_by_side(
+    qci_results['original'],
+    qci_results['rgb'],
+    qci_results['metadata'],
     scale_kpc
 )
-
-# Display with st.image (guaranteed to work)
-st.image(combined_img, use_container_width=True)
+st.image(combined_img, width='stretch')
 
 
 # ── QUANTUM COMPONENTS ─────────────────────────────────────────────
@@ -386,16 +469,16 @@ st.markdown("### ⚛️ Quantum Components")
 col_a, col_b, col_c = st.columns(3)
 
 with col_a:
-    st.image(array_to_pil(results['soliton']), caption="FDM Soliton Core", use_container_width=True)
-    st.caption(f"Peak: {results['soliton'].max():.3f} | ρ(r) ∝ [sin(kr)/kr]²")
+    st.image(array_to_pil(qci_results['soliton']), caption="FDM Soliton Core", width='stretch')
+    st.caption(f"Peak: {qci_results['soliton'].max():.3f} | ρ(r) ∝ [sin(kr)/kr]²")
 
 with col_b:
-    st.image(array_to_pil(results['wave']), caption="Dark Photon Field", use_container_width=True)
-    st.caption(f"Contrast: {results['wave'].std():.3f} | λ = h/(m v)")
+    st.image(array_to_pil(qci_results['wave']), caption="Dark Photon Field", width='stretch')
+    st.caption(f"Contrast: {qci_results['wave'].std():.3f} | λ = h/(m v)")
 
 with col_c:
-    st.image(array_to_pil(results['entangled']), caption="PDP Entangled", use_container_width=True)
-    st.caption(f"Mixing: {results['mixing']:.3f} | Entropy: {results['entropy']:.3f}")
+    st.image(array_to_pil(qci_results['entangled']), caption="PDP Entangled", width='stretch')
+    st.caption(f"Mixing: {qci_results['mixing']:.3f} | Entropy: {qci_results['entropy']:.3f}")
 
 
 # ── MAGNETAR PHYSICS TABS ─────────────────────────────────────────────
@@ -404,13 +487,12 @@ st.markdown("### 🔬 Magnetar Physics")
 
 tab1, tab2, tab3 = st.tabs(["🌌 Magnetic Field", "🕳️ Dark Photons", "🌀 Kerr Spacetime"])
 
-# Helper to display plots reliably
+# Helper to display plots
 def show_plot(fig):
-    """Convert figure to PIL and display"""
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight', facecolor='black', dpi=100)
     buf.seek(0)
-    st.image(Image.open(buf), use_container_width=True)
+    st.image(Image.open(buf), width='stretch')
     plt.close(fig)
 
 # Tab 1: Magnetar Field
@@ -439,11 +521,6 @@ with tab1:
     plt.colorbar(sc, ax=ax1, fraction=0.046, label='log₁₀|B|')
     
     show_plot(fig1)
-    
-    buf1 = io.BytesIO()
-    fig1.savefig(buf1, format='png', bbox_inches='tight', facecolor='black')
-    buf1.seek(0)
-    st.download_button("📥 Download Field Plot", buf1, "magnetar_field.png", use_container_width=True)
 
 # Tab 2: Dark Photons
 with tab2:
@@ -451,17 +528,7 @@ with tab2:
     ax2.set_facecolor('#0a0a1a')
     
     L = np.logspace(-2, 4, 500)
-    if m_dark <= 0:
-        P = (epsilon * B_surface / 1e15)**2 * np.ones_like(L)
-    else:
-        hbar_ev_s = 6.582e-16
-        c_km_s = 3e5
-        conv_len = 4 * 1e18 * hbar_ev_s * c_km_s / (m_dark**2)
-        if conv_len > 0:
-            P = (epsilon * B_surface / 1e15)**2 * np.sin(np.pi * L / conv_len)**2
-        else:
-            P = (epsilon * B_surface / 1e15)**2 * np.ones_like(L)
-    P = np.clip(P, 1e-30, 1)
+    P = stellaris_dark_photon_conversion(B_surface, L, epsilon, m_dark)
     
     ax2.semilogx(L, P, '#00aaff', linewidth=2.5)
     ax2.axhline(y=(epsilon * B_surface / 1e15)**2, color='#ff8888', linestyle='--', 
@@ -475,11 +542,6 @@ with tab2:
     ax2.set_yscale('log')
     
     show_plot(fig2)
-    
-    buf2 = io.BytesIO()
-    fig2.savefig(buf2, format='png', bbox_inches='tight', facecolor='black')
-    buf2.seek(0)
-    st.download_button("📥 Download Conversion Plot", buf2, "dark_photon_conversion.png", use_container_width=True)
     st.caption(f"ε = {epsilon:.1e} | m' = {m_dark:.1e} eV | B = {B_surface:.1e} G")
 
 # Tab 3: Kerr Geodesics
@@ -512,12 +574,74 @@ with tab3:
     ax3.axis('off')
     
     show_plot(fig3)
-    
-    buf3 = io.BytesIO()
-    fig3.savefig(buf3, format='png', bbox_inches='tight', facecolor='black')
-    buf3.seek(0)
-    st.download_button("📥 Download Geodesic Plot", buf3, "kerr_geodesic.png", use_container_width=True)
     st.caption(f"Event Horizon: r_+ = {r_horizon:.3f} M")
+
+
+# ── PRIMORDIAL ENTANGLEMENT TAB ─────────────────────────────────────────────
+st.markdown("---")
+st.markdown("### 🕳️ Primordial Entanglement")
+
+primordial_mixing, primordial_entropy, t_evo = primordial_von_neumann_evolution(omega, m_dark)
+
+col_p1, col_p2 = st.columns(2)
+
+with col_p1:
+    fig4, ax4 = plt.subplots(figsize=(6, 4), facecolor='#0a0a1a')
+    ax4.plot(t_evo, primordial_mixing, 'r-', linewidth=2)
+    ax4.set_xlabel('Scale Factor', color='white')
+    ax4.set_ylabel('Mixing Amplitude', color='white')
+    ax4.set_title('von Neumann Mixing Evolution', color='#00aaff')
+    ax4.grid(True, alpha=0.3)
+    ax4.tick_params(colors='white')
+    st.pyplot(fig4)
+    plt.close(fig4)
+
+with col_p2:
+    fig5, ax5 = plt.subplots(figsize=(6, 4), facecolor='#0a0a1a')
+    ax5.plot(t_evo, primordial_entropy, 'b-', linewidth=2)
+    ax5.set_xlabel('Scale Factor', color='white')
+    ax5.set_ylabel('Entanglement Entropy', color='white')
+    ax5.set_title('Entropy Evolution', color='#00aaff')
+    ax5.grid(True, alpha=0.3)
+    ax5.tick_params(colors='white')
+    st.pyplot(fig5)
+    plt.close(fig5)
+
+
+# ── QCIS FRAMEWORK TAB ─────────────────────────────────────────────
+st.markdown("---")
+st.markdown("### 🌌 QCIS Framework")
+
+k = np.logspace(-3, 0, 100)
+P_lcdm, P_quantum, P_tensor, q_corr = qcis_power_spectrum(k, f_nl=omega)
+T_k = qcis_transfer_function(k)
+
+col_q1, col_q2 = st.columns(2)
+
+with col_q1:
+    fig6, ax6 = plt.subplots(figsize=(6, 4), facecolor='#0a0a1a')
+    ax6.loglog(k, P_lcdm, 'b-', linewidth=2, label='ΛCDM')
+    ax6.loglog(k, P_quantum, 'r-', linewidth=2, label='Quantum-corrected')
+    ax6.fill_between(k, P_lcdm, P_quantum, alpha=0.3, color='red')
+    ax6.set_xlabel('k (Mpc⁻¹)', color='white')
+    ax6.set_ylabel('P(k)', color='white')
+    ax6.set_title('Matter Power Spectrum', color='#00aaff')
+    ax6.grid(True, alpha=0.3)
+    ax6.legend()
+    ax6.tick_params(colors='white')
+    st.pyplot(fig6)
+    plt.close(fig6)
+
+with col_q2:
+    fig7, ax7 = plt.subplots(figsize=(6, 4), facecolor='#0a0a1a')
+    ax7.loglog(k, T_k, 'g-', linewidth=2)
+    ax7.set_xlabel('k (Mpc⁻¹)', color='white')
+    ax7.set_ylabel('T(k)', color='white')
+    ax7.set_title('Transfer Function', color='#00aaff')
+    ax7.grid(True, alpha=0.3)
+    ax7.tick_params(colors='white')
+    st.pyplot(fig7)
+    plt.close(fig7)
 
 
 # ── DOWNLOAD BUTTONS ─────────────────────────────────────────────
@@ -538,20 +662,20 @@ def save_array_png(arr, cmap=None):
 
 def save_pil_image(pil_img):
     buf = io.BytesIO()
-    pil_img.save(buf, format='PNG')
+    Image.fromarray((pil_img * 255).astype(np.uint8)).save(buf, format='PNG')
     buf.seek(0)
     return buf.getvalue()
 
 col_d1, col_d2, col_d3, col_d4 = st.columns(4)
 
 with col_d1:
-    st.download_button("📸 Annotated Comparison", save_pil_image(combined_img), "annotated_comparison.png", use_container_width=True)
+    st.download_button("📸 Annotated Comparison", save_pil_image(combined_img), "annotated_comparison.png", width='stretch')
 with col_d2:
-    st.download_button("⭐ Soliton Core", save_array_png(results['soliton'], 'hot'), "soliton.png", use_container_width=True)
+    st.download_button("⭐ Soliton Core", save_array_png(qci_results['soliton'], 'hot'), "soliton.png", width='stretch')
 with col_d3:
-    st.download_button("🌊 Dark Photon", save_array_png(results['wave'], 'plasma'), "dark_photon.png", use_container_width=True)
+    st.download_button("🌊 Dark Photon", save_array_png(qci_results['wave'], 'plasma'), "dark_photon.png", width='stretch')
 with col_d4:
-    st.download_button("⚡ Entangled", save_array_png(results['entangled'], 'inferno'), "entangled.png", use_container_width=True)
+    st.download_button("⚡ Entangled", save_array_png(qci_results['entangled'], 'inferno'), "entangled.png", width='stretch')
 
 st.markdown("---")
-st.markdown("⚡ **Magnetar QED Explorer v3.1** | No Placeholders | Real Physics | Tony Ford Model")
+st.markdown("🔭 **QCAUS v6.0** | QCI + Stellaris + Primordial + QCIS | Tony Ford Model")

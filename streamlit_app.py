@@ -16,22 +16,13 @@ st.set_page_config(page_title="QCAUS", page_icon="🌌", layout="wide")
 # ============================================================================
 
 def fdm_soliton(r, k=1.0):
-    """
-    FDM Soliton: ρ(r) = ρ₀ [sin(kr)/(kr)]²
-    Produces concentric wave interference rings
-    """
+    """FDM Soliton: ρ(r) = ρ₀ [sin(kr)/(kr)]² - produces concentric interference rings"""
     kr = k * r
     with np.errstate(divide='ignore', invalid='ignore'):
         result = np.where(kr > 0, (np.sin(kr) / kr)**2, 1.0)
     return result
 
-def fdm_wave_function(r, k=1.0):
-    """Quantum wave function ψ(r) = sin(kr)/(kr)"""
-    kr = k * r
-    with np.errstate(divide='ignore', invalid='ignore'):
-        return np.where(kr > 0, np.sin(kr) / kr, 1.0)
-
-def generate_fdm_field(size=512, k=1.0):
+def generate_fdm_2d(size=512, k=1.0):
     """Generate 2D FDM soliton field with visible wave rings"""
     x = np.linspace(-3, 3, size)
     y = np.linspace(-3, 3, size)
@@ -40,14 +31,11 @@ def generate_fdm_field(size=512, k=1.0):
     return fdm_soliton(r, k=k)
 
 # ============================================================================
-# PDP QUANTUM FIELD - FROM SPECTRAL DUALITY
+# PDP QUANTUM FIELD
 # ============================================================================
 
-def pdp_quantum_field(img, omega=0.5, fringe=1.0):
-    """
-    PDP Quantum Field via spectral duality
-    ℒ_mix = (ε/2) F_μν F'^μν
-    """
+def pdp_field(img, omega=0.5, fringe=1.0):
+    """PDP Quantum Field via spectral duality: ℒ_mix = (ε/2) F_μν F'^μν"""
     fft_img = fft2(img)
     fft_shift = fftshift(fft_img)
     rows, cols = img.shape
@@ -64,15 +52,13 @@ def pdp_quantum_field(img, omega=0.5, fringe=1.0):
 # ============================================================================
 
 def quantum_superposition(img, omega=0.5, fringe=1.0, k=1.0, alpha=0.8, beta=1.0):
-    """
-    Quantum Superposition: |Ψ⟩ = |Ψ_astro⟩ + α|Ψ_FDM⟩ + β|Ψ_PDP⟩
-    """
+    """|Ψ⟩ = |Ψ_astro⟩ + α|Ψ_FDM⟩ + β|Ψ_PDP⟩"""
     size = min(img.shape)
     r = np.linspace(0, 3, size)
     fdm_profile = fdm_soliton(r, k=k)
     fdm_2d = np.outer(fdm_profile, fdm_profile)
     fdm_resized = zoom(fdm_2d, (img.shape[0]/size, img.shape[1]/size))
-    pdp = pdp_quantum_field(img, omega, fringe)
+    pdp = pdp_field(img, omega, fringe)
     enhanced = img + alpha * fdm_resized + beta * pdp
     return np.clip(enhanced, 0, 1), fdm_resized, pdp
 
@@ -97,7 +83,7 @@ def dark_photon_conv(B, eps=0.1, m=1e-9):
     return eps**2 * (1 - np.exp(-B**2 / m**2))
 
 def generate_magnetar_fields(size=200, B0=1e15, eps=0.1):
-    """Generate magnetar field visualizations with wave patterns"""
+    """Generate magnetar field visualizations"""
     r = np.linspace(1, 10, size)
     theta = np.linspace(0, np.pi, size)
     R, Theta = np.meshgrid(r, theta)
@@ -105,7 +91,7 @@ def generate_magnetar_fields(size=200, B0=1e15, eps=0.1):
     B_r, B_theta = magnetar_dipole(R, Theta, B0=B0)
     B_mag = np.sqrt(B_r**2 + B_theta**2)
     
-    # Add quantum oscillations
+    # Add quantum oscillations for visibility
     waves = 1 + 0.2 * np.sin(8 * R) * np.exp(-R/2)
     B_waves = B_mag * waves
     
@@ -127,7 +113,7 @@ def add_scale_bar(ax, width, kpc=100, scale=0.1):
             bbox=dict(boxstyle='round', facecolor='black', alpha=0.6))
 
 def download_link(fig, name):
-    """Generate download link for figure"""
+    """Generate download link"""
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
     buf.seek(0)
@@ -135,7 +121,7 @@ def download_link(fig, name):
     return f'<a href="data:image/png;base64,{b64}" download="{name}" style="text-decoration:none;">📥 Download PNG</a>'
 
 def load_image(file):
-    """Load and normalize image"""
+    """Load and normalize uploaded image"""
     try:
         img = Image.open(file)
         arr = np.array(img)
@@ -146,8 +132,8 @@ def load_image(file):
     except:
         return None
 
-def sample_galaxy_cluster():
-    """Generate sample galaxy cluster image"""
+def sample_galaxy():
+    """Sample galaxy cluster image"""
     size = 512
     x = np.linspace(-2, 2, size)
     y = np.linspace(-2, 2, size)
@@ -159,7 +145,7 @@ def sample_galaxy_cluster():
     return img / img.max()
 
 def sample_magnetar():
-    """Generate sample magnetar image"""
+    """Sample magnetar image"""
     size = 512
     x = np.linspace(-2, 2, size)
     y = np.linspace(-2, 2, size)
@@ -192,13 +178,13 @@ with st.sidebar:
     img_name = "galaxy"
     scale = 0.1
     
-    img_source = st.radio("Source", ["Galaxy Cluster", "Magnetar", "Upload"])
+    source = st.radio("Source", ["Galaxy Cluster", "Magnetar", "Upload"])
     
-    if img_source == "Galaxy Cluster":
-        img = sample_galaxy_cluster()
+    if source == "Galaxy Cluster":
+        img = sample_galaxy()
         img_name = "galaxy_cluster"
         scale = 0.1
-    elif img_source == "Magnetar":
+    elif source == "Magnetar":
         img = sample_magnetar()
         img_name = "magnetar"
         scale = 0.1
@@ -217,7 +203,7 @@ with st.sidebar:
         scale = st.number_input("kpc/pixel", value=scale, format="%.4f")
 
 # ============================================================================
-# MAIN TABS
+# TABS
 # ============================================================================
 
 tab1, tab2 = st.tabs(["🌈 Quantum Field Visualization", "⚡ Magnetar QED Explorer"])
@@ -235,7 +221,7 @@ with tab1:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         base = f"qcaus_{img_name}_{ts}"
         
-        # Metrics
+        # Metrics row
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Ω", f"{omega:.2f}")
         c2.metric("λ", f"{fringe:.2f}")
@@ -246,7 +232,6 @@ with tab1:
         # BEFORE / AFTER COMPARISON
         # ====================================================================
         st.subheader("🔬 Before / After: Quantum Field Overlay")
-        st.markdown("*Wave interference rings from FDM soliton become visible after processing*")
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
         
@@ -395,7 +380,7 @@ with tab2:
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
         
         im1 = axes[0].imshow(B_field, extent=[1, 10, 0, 180], aspect='auto', cmap='hot', origin='upper')
-        axes[0].set_title(f"Magnetic Field\n{B0:.1f}×10¹⁵ G\nWave oscillations")
+        axes[0].set_title(f"Magnetic Field\n{B0:.1f}×10¹⁵ G")
         axes[0].set_xlabel("Radius (R/R₀)")
         axes[0].set_ylabel("Angle (deg)")
         plt.colorbar(im1, ax=axes[0], label="B-Field [G]")
@@ -414,19 +399,6 @@ with tab2:
         st.pyplot(fig)
         st.markdown(download_link(fig, f"{base}_magnetar.png"), unsafe_allow_html=True)
         plt.close(fig)
-    
-    with st.expander("📖 Magnetar Physics", expanded=False):
-        st.markdown(r"""
-        ### Theoretical Framework
-        
-        | Effect | Formula | Description |
-        |--------|---------|-------------|
-        | **Dipole Field** | $B = B_0 (R/r)^3 (2\cos\theta, \sin\theta)$ | Magnetic field of a rotating neutron star |
-        | **Vacuum Polarization** | Euler-Heisenberg | QED corrections in strong B-fields ($B > B_{crit} = 4.41 \times 10^{13}$ G) |
-        | **Dark Photon Conversion** | $P = \varepsilon^2 (1 - e^{-B^2/m^2})$ | Photon → dark photon oscillation |
-        
-        **Wave Patterns:** Quantum oscillations appear in the B-field due to vacuum polarization effects
-        """)
 
 # ============================================================================
 # FOOTER
